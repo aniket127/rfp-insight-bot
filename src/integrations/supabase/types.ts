@@ -14,7 +14,125 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversations: {
+        Row: {
+          created_at: string
+          id: string
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      documents: {
+        Row: {
+          client: string
+          confidence: number | null
+          content: string | null
+          created_at: string
+          file_url: string | null
+          geography: string
+          id: string
+          industry: string
+          summary: string | null
+          tags: string[] | null
+          title: string
+          type: Database["public"]["Enums"]["document_type"]
+          updated_at: string
+          user_id: string | null
+          year: string
+        }
+        Insert: {
+          client: string
+          confidence?: number | null
+          content?: string | null
+          created_at?: string
+          file_url?: string | null
+          geography: string
+          id?: string
+          industry: string
+          summary?: string | null
+          tags?: string[] | null
+          title: string
+          type: Database["public"]["Enums"]["document_type"]
+          updated_at?: string
+          user_id?: string | null
+          year: string
+        }
+        Update: {
+          client?: string
+          confidence?: number | null
+          content?: string | null
+          created_at?: string
+          file_url?: string | null
+          geography?: string
+          id?: string
+          industry?: string
+          summary?: string | null
+          tags?: string[] | null
+          title?: string
+          type?: Database["public"]["Enums"]["document_type"]
+          updated_at?: string
+          user_id?: string | null
+          year?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          confidence: number | null
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          sources: string[] | null
+          type: Database["public"]["Enums"]["message_type"]
+          user_id: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          sources?: string[] | null
+          type: Database["public"]["Enums"]["message_type"]
+          user_id?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          sources?: string[] | null
+          type?: Database["public"]["Enums"]["message_type"]
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +141,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      document_type: "RFP" | "Case Study" | "Proposal" | "Win/Loss Analysis"
+      message_type: "user" | "bot"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +269,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      document_type: ["RFP", "Case Study", "Proposal", "Win/Loss Analysis"],
+      message_type: ["user", "bot"],
+    },
   },
 } as const
