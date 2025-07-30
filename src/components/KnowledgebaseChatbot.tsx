@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bot, Upload, Search, BookOpen, Settings, Plus } from "lucide-react";
+import { Bot, Upload, Search, BookOpen, Settings, Plus, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,8 +7,10 @@ import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { FilterPanel } from "./FilterPanel";
 import { DocumentCard } from "./DocumentCard";
+import { Auth } from "./Auth";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
   id: string;
@@ -74,6 +76,8 @@ const SAMPLE_DOCUMENTS: Document[] = [
 
 export const KnowledgebaseChatbot = () => {
   const { toast } = useToast();
+  const [user, setUser] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
@@ -85,8 +89,9 @@ export const KnowledgebaseChatbot = () => {
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("chat");
-  const [documents, setDocuments] = useState<Document[]>(SAMPLE_DOCUMENTS);
-  const [filteredDocuments, setFilteredDocuments] = useState<Document[]>(SAMPLE_DOCUMENTS);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [filteredDocuments, setFilteredDocuments] = useState<Document[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -96,6 +101,64 @@ export const KnowledgebaseChatbot = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setIsAuthLoading(false);
+      if (session?.user) {
+        loadDocuments();
+      }
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        loadDocuments();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadDocuments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      // Transform the data to match our interface
+      const transformedDocs = data.map(doc => ({
+        id: doc.id,
+        title: doc.title,
+        type: doc.type as "RFP" | "Case Study" | "Proposal" | "Win/Loss Analysis",
+        client: doc.client,
+        industry: doc.industry,
+        geography: doc.geography || "Global",
+        year: new Date(doc.created_at).getFullYear().toString(),
+        summary: doc.summary,
+        tags: doc.tags || [],
+        confidence: 0.85
+      }));
+
+      setDocuments(transformedDocs);
+      setFilteredDocuments(transformedDocs);
+    } catch (error) {
+      console.error('Error loading documents:', error);
+      toast({
+        title: "Error loading documents",
+        description: "Failed to load documents from the database.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleSendMessage = async (content: string) => {
     const userMessage: Message = {
@@ -108,42 +171,61 @@ export const KnowledgebaseChatbot = () => {
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      let botResponse = "";
-      let sources: string[] = [];
-      let confidence = 0.85;
-
-      if (content.toLowerCase().includes("healthcare")) {
-        botResponse = "I found several healthcare-related documents in our knowledge base. Our most recent healthcare project involved a cloud migration for MedCenter Corp, which required strict HIPAA compliance and advanced security measures. We successfully migrated their patient data systems to Azure with zero downtime and achieved 99.9% uptime SLA.\n\nKey highlights:\n• HIPAA-compliant cloud architecture\n• End-to-end encryption\n• Disaster recovery implementation\n• Staff training and change management\n\nWould you like me to provide more details about any specific aspect?";
-        sources = ["Healthcare Cloud Migration RFP Response", "HIPAA Compliance Guidelines"];
-        confidence = 0.95;
-      } else if (content.toLowerCase().includes("financial") || content.toLowerCase().includes("banking")) {
-        botResponse = "Our financial services portfolio includes successful digital transformation projects. Notable case study: SecureBank Inc's digital banking platform implementation resulted in:\n\n• 40% increase in customer satisfaction\n• 25% reduction in operational costs\n• Enhanced mobile banking experience\n• Improved fraud detection systems\n\nThe project utilized advanced APIs, microservices architecture, and AI-powered analytics. Would you like specific technical details or metrics?";
-        sources = ["Financial Services Digital Transformation", "SecureBank Case Study"];
-        confidence = 0.88;
-      } else if (content.toLowerCase().includes("iot") || content.toLowerCase().includes("manufacturing")) {
-        botResponse = "Our manufacturing expertise includes IoT-enabled smart factory solutions. The TechManufacturing Ltd project demonstrates our capabilities in:\n\n• Predictive maintenance systems\n• Real-time production monitoring\n• Industrial IoT sensor networks\n• Edge computing implementation\n\nThis solution reduced equipment downtime by 30% and improved overall equipment effectiveness (OEE) by 15%.";
-        sources = ["Manufacturing IoT Implementation", "Smart Factory Architecture"];
-        confidence = 0.92;
-      } else {
-        botResponse = `I understand you're asking about "${content}". Let me search our knowledge base for relevant information. Our repository contains over 500 RFPs, case studies, and proposals covering various industries including healthcare, financial services, manufacturing, technology, and government sectors.\n\nTo provide more specific insights, could you tell me:\n• Which industry are you interested in?\n• Are you looking for technical solutions or business outcomes?\n• Any specific time frame or geography?`;
-        sources = ["Knowledge Base Overview"];
-        confidence = 0.75;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Not authenticated');
       }
+
+      const { data, error } = await supabase.functions.invoke('chat-ai', {
+        body: { 
+          message: content,
+          conversationId: currentConversationId 
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) throw error;
 
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: "bot",
-        content: botResponse,
+        content: data.response,
         timestamp: new Date(),
-        sources,
-        confidence
+        sources: data.sources || [],
+        confidence: data.confidence || 0.85
       };
 
       setMessages(prev => [...prev, botMessage]);
+      
+      // Store conversation ID for future messages
+      if (data.conversationId) {
+        setCurrentConversationId(data.conversationId);
+      }
+      
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: "bot",
+        content: "I'm sorry, I encountered an error processing your request. Please try again.",
+        timestamp: new Date(),
+        confidence: 0.0
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleFileUpload = (files: FileList) => {
@@ -188,6 +270,35 @@ export const KnowledgebaseChatbot = () => {
     });
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setMessages([{
+      id: "welcome",
+      type: "bot",
+      content: "Welcome to the RFP & Case Study Knowledge Assistant! I can help you search through our repository of proposals, case studies, and RFP responses. Try asking me about specific industries, technologies, or client challenges.",
+      timestamp: new Date(),
+      confidence: 1.0
+    }]);
+    setCurrentConversationId(null);
+  };
+
+  if (isAuthLoading) {
+    return (
+      <div className="h-screen bg-background flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gradient-primary rounded-lg shadow-glass animate-pulse">
+            <Bot className="h-5 w-5 text-white" />
+          </div>
+          <span className="text-foreground">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Auth onAuthSuccess={() => setUser(user)} />;
+  }
+
   return (
     <div className="h-screen bg-background flex flex-col">
       {/* Header */}
@@ -209,6 +320,9 @@ export const KnowledgebaseChatbot = () => {
             </Button>
             <Button variant="ghost" size="sm">
               <Settings className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
