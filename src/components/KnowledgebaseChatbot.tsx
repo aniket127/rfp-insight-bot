@@ -103,20 +103,25 @@ export const KnowledgebaseChatbot = () => {
   }, [messages]);
 
   useEffect(() => {
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Set up auth state listener FIRST
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       setIsAuthLoading(false);
-      if (session?.user) {
-        loadDocuments();
+      
+      // Load documents when user signs in
+      if (session?.user && !documents.length) {
+        setTimeout(() => {
+          loadDocuments();
+        }, 0);
       }
     });
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      setIsAuthLoading(false);
       if (session?.user) {
         loadDocuments();
       }
@@ -296,7 +301,7 @@ export const KnowledgebaseChatbot = () => {
   }
 
   if (!user) {
-    return <Auth onAuthSuccess={() => setUser(user)} />;
+    return <Auth />;
   }
 
   return (

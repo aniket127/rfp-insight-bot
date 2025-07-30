@@ -6,11 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Bot } from "lucide-react";
 
-interface AuthProps {
-  onAuthSuccess: () => void;
-}
-
-export const Auth = ({ onAuthSuccess }: AuthProps) => {
+export const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
@@ -26,6 +22,9 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`
+          }
         });
         
         if (error) throw error;
@@ -41,8 +40,6 @@ export const Auth = ({ onAuthSuccess }: AuthProps) => {
         });
         
         if (error) throw error;
-        
-        onAuthSuccess();
       }
     } catch (error: any) {
       toast({
