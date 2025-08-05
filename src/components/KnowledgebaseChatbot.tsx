@@ -239,8 +239,8 @@ export const KnowledgebaseChatbot = () => {
   const handleFileUpload = (files: FileList) => {
     const fileNames = Array.from(files).map(file => file.name);
     toast({
-      title: "Files uploaded",
-      description: `Uploaded ${files.length} file(s): ${fileNames.join(", ")}`,
+      title: "Files selected",
+      description: `Selected ${files.length} file(s): ${fileNames.join(", ")} - Complete upload form to process`,
     });
   };
 
