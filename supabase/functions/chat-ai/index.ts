@@ -101,6 +101,12 @@ serve(async (req) => {
     let searchMethod = 'fallback';
     let confidence = 0.3; // Base confidence for general knowledge
 
+    if (!embeddingResponse.ok) {
+      const errorData = await embeddingResponse.text();
+      console.error('❌ OpenAI embedding API error:', errorData);
+      console.error('❌ Embedding failed - skipping vector search, proceeding to text search');
+    }
+
     if (embeddingResponse.ok) {
       try {
         const embeddingData = await embeddingResponse.json();
