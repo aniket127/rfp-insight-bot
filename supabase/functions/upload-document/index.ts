@@ -46,8 +46,22 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
+      console.error('Auth error:', userError);
       throw new Error('Invalid token');
     }
+
+    // Create a new client with the user's session for RLS
+    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        headers: {
+          Authorization: authHeader
+        }
+      }
+    });
 
     const formData = await req.formData();
     const file = formData.get('file') as File;
@@ -81,7 +95,7 @@ serve(async (req) => {
 
     // Upload file to storage
     const fileName = `${user.id}/${Date.now()}_${file.name}`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await supabaseWithAuth.storage
       .from('documents')
       .upload(fileName, file, {
         cacheControl: '3600',
@@ -136,7 +150,7 @@ serve(async (req) => {
     }
 
     // Create document record in database
-    const { data: documentData, error: dbError } = await supabase
+    const { data: documentData, error: dbError } = await supabaseWithAuth
       .from('documents')
       .insert({
         title: title,
