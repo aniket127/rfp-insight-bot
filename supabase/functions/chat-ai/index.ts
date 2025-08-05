@@ -39,25 +39,37 @@ serve(async (req) => {
       }
     });
 
-    // Get the authorization header (now optional since JWT is disabled for debugging)
+    // Get the authorization header
     const authHeader = req.headers.get('Authorization');
     console.log('🔐 Auth header present:', !!authHeader);
     
-    let user = null;
-    if (authHeader) {
-      // Set the auth context for the request
-      const token = authHeader.replace('Bearer ', '');
-      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser(token);
-      
-      if (userError) {
-        console.error('❌ Auth error:', userError);
-      } else {
-        user = authUser;
-        console.log('✅ User authenticated:', user?.email);
-      }
-    } else {
-      console.log('⚠️ No auth header - proceeding without user context');
+    if (!authHeader) {
+      throw new Error('Authentication required');
     }
+
+    // Set the auth context for the request
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user) {
+      console.error('❌ Auth error:', userError);
+      throw new Error('Invalid authentication');
+    }
+
+    console.log('✅ User authenticated:', user?.email);
+
+    // Create authenticated Supabase client for RLS
+    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        headers: {
+          Authorization: authHeader
+        }
+      }
+    });
 
     const { message, conversationId } = await req.json();
     console.log('📨 Request data:', { message: message?.substring(0, 50), conversationId });
@@ -181,7 +193,7 @@ Available documents in knowledge base:`;
     
     if (!currentConversationId) {
       // Create new conversation
-      const { data: newConversation, error: convError } = await supabase
+      const { data: newConversation, error: convError } = await supabaseWithAuth
         .from('conversations')
         .insert({
           title: message.substring(0, 50) + (message.length > 50 ? '...' : ''),
@@ -199,7 +211,7 @@ Available documents in knowledge base:`;
     }
 
     // Insert user message
-    const { error: userMsgError } = await supabase
+    const { error: userMsgError } = await supabaseWithAuth
       .from('messages')
       .insert({
         conversation_id: currentConversationId,
@@ -214,7 +226,7 @@ Available documents in knowledge base:`;
 
     // Insert bot response
     const sources = documents?.map(doc => doc.title) || [];
-    const { error: botMsgError } = await supabase
+    const { error: botMsgError } = await supabaseWithAuth
       .from('messages')
       .insert({
         conversation_id: currentConversationId,
