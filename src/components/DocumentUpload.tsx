@@ -161,12 +161,24 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
                       accept=".pdf,.txt,.doc,.docx,.md"
                       className="hidden"
                       id="file-upload"
+                      ref={(input) => {
+                        if (input) {
+                          (window as any).fileInputRef = input;
+                        }
+                      }}
                     />
-                    <Label htmlFor="file-upload" className="cursor-pointer">
-                      <Button variant="outline" type="button">
-                        Choose File
-                      </Button>
-                    </Label>
+                    <Button 
+                      variant="outline" 
+                      type="button"
+                      onClick={() => {
+                        const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+                        if (fileInput) {
+                          fileInput.click();
+                        }
+                      }}
+                    >
+                      Choose File
+                    </Button>
                   </div>
                 </div>
               ) : (
