@@ -49,8 +49,21 @@ serve(async (req) => {
       throw new Error('Invalid token');
     }
 
+    // Create authenticated Supabase client for RLS
+    const supabaseWithAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        headers: {
+          Authorization: authHeader
+        }
+      }
+    });
+
     // Get all documents that don't have embeddings yet
-    const { data: documents, error: fetchError } = await supabase
+    const { data: documents, error: fetchError } = await supabaseWithAuth
       .from('documents')
       .select('id, title, summary, content')
       .is('embeddings', null);
@@ -101,7 +114,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'text-embedding-ada-002',
+            model: 'text-embedding-3-small',
             input: textToEmbed,
           }),
         });
@@ -117,7 +130,7 @@ serve(async (req) => {
         const embedding = embeddingData.data[0].embedding;
 
         // Update document with embedding
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseWithAuth
           .from('documents')
           .update({ embeddings: embedding })
           .eq('id', doc.id);
