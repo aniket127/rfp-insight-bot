@@ -101,14 +101,14 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'text-embedding-3-small',
+            model: 'text-embedding-ada-002',
             input: textToEmbed,
           }),
         });
 
         if (!embeddingResponse.ok) {
           const errorData = await embeddingResponse.text();
-          console.error(`OpenAI API error for document ${doc.id} with text-embedding-3-small:`, errorData);
+          console.error(`OpenAI API error for document ${doc.id} with text-embedding-ada-002:`, errorData);
           errors++;
           continue;
         }
