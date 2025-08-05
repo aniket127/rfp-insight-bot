@@ -62,19 +62,29 @@ export const ChatMessage = ({
         )}
 
         {type === "bot" && (
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 space-y-3">
             {sources && sources.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {sources.map((source, index) => (
-                  <Badge key={index} variant="secondary" className="text-xs">
-                    {source}
-                  </Badge>
-                ))}
+              <div className="border-t border-glass-border pt-3">
+                <div className="text-xs font-medium text-muted-foreground mb-2">
+                  📚 Sources ({sources.length})
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {sources.map((source, index) => (
+                    <Badge 
+                      key={index} 
+                      variant="outline" 
+                      className="text-xs bg-accent/50 border-accent hover:bg-accent/70 transition-colors"
+                    >
+                      📄 {source}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             )}
 
             {confidence && (
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                <span className="text-green-500">✓</span>
                 Confidence: {Math.round(confidence * 100)}%
               </div>
             )}
