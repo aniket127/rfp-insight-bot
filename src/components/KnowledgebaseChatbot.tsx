@@ -33,6 +33,7 @@ interface Document {
   summary: string;
   tags: string[];
   confidence?: number;
+  file_url?: string;
 }
 
 // Sample data for demonstration
@@ -153,7 +154,8 @@ export const KnowledgebaseChatbot = () => {
         year: new Date(doc.created_at).getFullYear().toString(),
         summary: doc.summary,
         tags: doc.tags || [],
-        confidence: 0.85
+        confidence: 0.85,
+        file_url: doc.file_url
       }));
 
       setDocuments(transformedDocs);
@@ -388,8 +390,23 @@ export const KnowledgebaseChatbot = () => {
                     key={doc.id}
                     {...doc}
                     className="scale-90 origin-top-left"
-                    onView={() => toast({ title: "Opening document", description: doc.title })}
-                    onDownload={() => toast({ title: "Downloading", description: doc.title })}
+                    onView={() => {
+                      if (doc.file_url) {
+                        window.open(doc.file_url, '_blank');
+                      } else {
+                        toast({ title: "File not available", description: "Document file not found", variant: "destructive" });
+                      }
+                    }}
+                    onDownload={() => {
+                      if (doc.file_url) {
+                        const link = document.createElement('a');
+                        link.href = doc.file_url;
+                        link.download = doc.title;
+                        link.click();
+                      } else {
+                        toast({ title: "Download failed", description: "Document file not found", variant: "destructive" });
+                      }
+                    }}
                   />
                 ))}
               </div>
@@ -454,8 +471,23 @@ export const KnowledgebaseChatbot = () => {
                   <DocumentCard
                     key={doc.id}
                     {...doc}
-                    onView={() => toast({ title: "Opening document", description: doc.title })}
-                    onDownload={() => toast({ title: "Downloading", description: doc.title })}
+                    onView={() => {
+                      if (doc.file_url) {
+                        window.open(doc.file_url, '_blank');
+                      } else {
+                        toast({ title: "File not available", description: "Document file not found", variant: "destructive" });
+                      }
+                    }}
+                    onDownload={() => {
+                      if (doc.file_url) {
+                        const link = document.createElement('a');
+                        link.href = doc.file_url;
+                        link.download = doc.title;
+                        link.click();
+                      } else {
+                        toast({ title: "Download failed", description: "Document file not found", variant: "destructive" });
+                      }
+                    }}
                   />
                 ))}
               </div>
