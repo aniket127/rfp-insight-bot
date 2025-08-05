@@ -29,14 +29,18 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
   const { toast } = useToast();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('🔍 File selection triggered');
+    console.log('🔍 DocumentUpload - File selection triggered');
     const file = e.target.files?.[0];
+    console.log('📁 DocumentUpload - File from input:', file);
+    
     if (file) {
-      console.log('📁 File selected:', file.name, 'Size:', file.size);
+      console.log('📁 DocumentUpload - File selected:', file.name, 'Size:', file.size);
       setSelectedFile(file);
+      console.log('📁 DocumentUpload - selectedFile state updated');
       
       // Auto-fill title from filename if empty
       if (!formData.title) {
+        console.log('📝 DocumentUpload - Auto-filling title');
         setFormData(prev => ({
           ...prev,
           title: file.name.replace(/\.[^/.]+$/, "") // Remove extension
@@ -49,7 +53,9 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
         description: `${file.name} selected. Fill in details below to upload.`,
       });
       
-      console.log('✅ File selection complete - NO upload triggered');
+      console.log('✅ DocumentUpload - File selection complete - NO upload triggered');
+    } else {
+      console.log('❌ DocumentUpload - No file selected');
     }
   };
 
@@ -140,6 +146,13 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
   const removeFile = () => {
     setSelectedFile(null);
   };
+
+  console.log('🔄 DocumentUpload - Render:', { 
+    selectedFile: selectedFile?.name || 'none', 
+    formData, 
+    isUploading,
+    buttonDisabled: isUploading || !selectedFile || !formData.title || !formData.type || !formData.client || !formData.industry
+  });
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
