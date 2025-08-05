@@ -160,11 +160,56 @@ export const KnowledgebaseChatbot = () => {
 
       setDocuments(transformedDocs);
       setFilteredDocuments(transformedDocs);
+
+      // Check if any documents are missing embeddings and generate them
+      const documentsWithoutEmbeddings = data.filter(doc => !doc.embeddings);
+      if (documentsWithoutEmbeddings.length > 0) {
+        console.log(`Found ${documentsWithoutEmbeddings.length} documents without embeddings. Generating...`);
+        await generateEmbeddings();
+      }
     } catch (error) {
       console.error('Error loading documents:', error);
       toast({
         title: "Error loading documents",
         description: "Failed to load documents from the database.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const generateEmbeddings = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
+      toast({
+        title: "Generating embeddings",
+        description: "Processing documents for better search capabilities...",
+      });
+
+      const { data, error } = await supabase.functions.invoke('generate-embeddings', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Embeddings generated",
+        description: `Processed ${data.processed} documents successfully. Chat will now provide better document-based responses.`,
+      });
+
+      // Reload documents to get updated data
+      loadDocuments();
+    } catch (error: any) {
+      console.error('Error generating embeddings:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate embeddings. Please try again.",
         variant: "destructive",
       });
     }
