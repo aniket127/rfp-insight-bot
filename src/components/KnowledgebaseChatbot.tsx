@@ -160,13 +160,6 @@ export const KnowledgebaseChatbot = () => {
 
       setDocuments(transformedDocs);
       setFilteredDocuments(transformedDocs);
-
-      // Check if any documents are missing embeddings and generate them
-      const documentsWithoutEmbeddings = data.filter(doc => !doc.embeddings);
-      if (documentsWithoutEmbeddings.length > 0) {
-        console.log(`Found ${documentsWithoutEmbeddings.length} documents without embeddings. Generating...`);
-        await generateEmbeddings();
-      }
     } catch (error) {
       console.error('Error loading documents:', error);
       toast({
