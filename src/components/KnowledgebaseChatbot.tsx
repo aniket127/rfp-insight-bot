@@ -399,12 +399,25 @@ export const KnowledgebaseChatbot = () => {
                     }}
                     onDownload={() => {
                       if (doc.file_url) {
-                        const link = document.createElement('a');
-                        link.href = doc.file_url;
-                        link.download = doc.title;
-                        link.click();
+                        // Create a proper download link
+                        fetch(doc.file_url)
+                          .then(response => response.blob())
+                          .then(blob => {
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = doc.title + '.pdf';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(url);
+                            toast({ title: "Download started", description: doc.title });
+                          })
+                          .catch(() => {
+                            toast({ title: "Download failed", description: "Could not download the file", variant: "destructive" });
+                          });
                       } else {
-                        toast({ title: "Download failed", description: "Document file not found", variant: "destructive" });
+                        toast({ title: "Download not available", description: "This document doesn't have an uploaded file", variant: "destructive" });
                       }
                     }}
                   />
@@ -480,12 +493,25 @@ export const KnowledgebaseChatbot = () => {
                     }}
                     onDownload={() => {
                       if (doc.file_url) {
-                        const link = document.createElement('a');
-                        link.href = doc.file_url;
-                        link.download = doc.title;
-                        link.click();
+                        // Create a proper download link
+                        fetch(doc.file_url)
+                          .then(response => response.blob())
+                          .then(blob => {
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = doc.title + '.pdf';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            window.URL.revokeObjectURL(url);
+                            toast({ title: "Download started", description: doc.title });
+                          })
+                          .catch(() => {
+                            toast({ title: "Download failed", description: "Could not download the file", variant: "destructive" });
+                          });
                       } else {
-                        toast({ title: "Download failed", description: "Document file not found", variant: "destructive" });
+                        toast({ title: "Download not available", description: "This document doesn't have an uploaded file", variant: "destructive" });
                       }
                     }}
                   />
