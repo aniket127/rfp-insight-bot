@@ -77,12 +77,16 @@ serve(async (req) => {
     // Process documents in batches to avoid rate limits
     for (const doc of documents) {
       try {
+        console.log(`Processing document ${doc.id}: ${doc.title}`);
+        
         // Combine title, summary, and content for embedding
         const textToEmbed = [
           doc.title,
           doc.summary || '',
           doc.content || ''
         ].filter(Boolean).join(' ');
+
+        console.log(`Text to embed length: ${textToEmbed.length} characters`);
 
         if (!textToEmbed.trim()) {
           console.log(`Skipping document ${doc.id} - no content to embed`);
@@ -124,7 +128,7 @@ serve(async (req) => {
 
         if (!embeddingResponse.ok) {
           const errorData = await embeddingResponse.text();
-          console.error(`OpenAI API error for document ${doc.id}:`, errorData);
+          console.error(`Both embedding models failed for document ${doc.id}:`, errorData);
           errors++;
           continue;
         }
