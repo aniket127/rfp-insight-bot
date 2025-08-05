@@ -82,6 +82,7 @@ serve(async (req) => {
     console.log('✅ Processing message:', message.substring(0, 100));
 
     // Generate embedding for the user's query
+    console.log('🔍 Generating embedding for query...');
     const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: {
@@ -94,10 +95,7 @@ serve(async (req) => {
       }),
     });
 
-    if (!embeddingResponse.ok) {
-      const errorData = await embeddingResponse.text();
-      console.error('OpenAI embedding API error:', errorData);
-    }
+    console.log('📊 Embedding response status:', embeddingResponse.status);
 
     let documents = [];
     let searchMethod = 'fallback';
@@ -107,8 +105,10 @@ serve(async (req) => {
       try {
         const embeddingData = await embeddingResponse.json();
         const queryEmbedding = embeddingData.data[0].embedding;
+        console.log('🎯 Query embedding generated, dimensions:', queryEmbedding.length);
 
         // Use vector similarity search
+        console.log('🔍 Starting vector similarity search...');
         const { data: vectorDocs, error: vectorError } = await supabase
           .rpc('search_documents_by_similarity', {
             query_embedding: queryEmbedding,
@@ -116,18 +116,26 @@ serve(async (req) => {
             match_count: 5
           });
 
+        console.log('📊 Vector search completed');
+        console.log('📊 Vector error:', vectorError);
+        console.log('📊 Vector results count:', vectorDocs?.length || 0);
+
         if (vectorError) {
-          console.error('Vector search error:', vectorError);
+          console.error('❌ Vector search error:', vectorError);
         } else {
           documents = vectorDocs || [];
           searchMethod = 'vector';
-          console.log(`Vector search found ${documents.length} relevant documents`);
+          console.log(`✅ Vector search found ${documents.length} relevant documents`);
+          
+          if (documents.length > 0) {
+            console.log('📊 Document similarities:', documents.map(d => ({ title: d.title, similarity: d.similarity })));
+          }
           
           // Calculate confidence based on vector search results
           if (documents.length > 0) {
             const avgSimilarity = documents.reduce((sum, doc) => sum + (doc.similarity || 0), 0) / documents.length;
             confidence = Math.min(0.95, 0.4 + (avgSimilarity * 0.6)); // Scale from 0.4 to 0.95
-            console.log(`Average similarity: ${avgSimilarity.toFixed(3)}, Confidence: ${confidence.toFixed(3)}`);
+            console.log(`📊 Average similarity: ${avgSimilarity.toFixed(3)}, Confidence: ${confidence.toFixed(3)}`);
           }
         }
       } catch (error) {
@@ -136,27 +144,35 @@ serve(async (req) => {
     }
 
     // Fallback to text search if vector search fails or finds no results
+    console.log('🔍 Checking if text search fallback needed...');
     if (documents.length === 0) {
+      console.log('🔍 Starting text search fallback...');
       const { data: textDocs, error: searchError } = await supabase
         .from('documents')
         .select('id, title, type, client, industry, geography, year, summary, content, tags')
         .or(`title.ilike.%${message}%,summary.ilike.%${message}%,content.ilike.%${message}%`)
         .limit(5);
 
+      console.log('📊 Text search completed');
+      console.log('📊 Text search error:', searchError);
+      console.log('📊 Text search results count:', textDocs?.length || 0);
+
       if (searchError) {
-        console.error('Text search error:', searchError);
+        console.error('❌ Text search error:', searchError);
       } else {
         documents = textDocs || [];
         searchMethod = 'text';
-        console.log(`Text search found ${documents.length} relevant documents`);
+        console.log(`✅ Text search found ${documents.length} relevant documents`);
         
         // Lower confidence for text-based search
         if (documents.length > 0) {
           confidence = 0.6 + (documents.length * 0.05); // 0.6 to 0.85 based on results count
-          console.log(`Text search confidence: ${confidence.toFixed(3)}`);
+          console.log(`📊 Text search confidence: ${confidence.toFixed(3)}`);
         }
       }
     }
+
+    console.log(`🎯 Final results: ${documents.length} documents, confidence: ${confidence.toFixed(3)}, method: ${searchMethod}`);
 
     let systemPrompt = `You are a knowledgeable assistant that helps users find information from a repository of RFPs, case studies, and proposals. 
 
