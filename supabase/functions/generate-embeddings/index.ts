@@ -121,7 +121,7 @@ serve(async (req) => {
 
         if (!embeddingResponse.ok) {
           const errorData = await embeddingResponse.text();
-          console.error(`OpenAI API error for document ${doc.id} with text-embedding-ada-002:`, errorData);
+          console.error(`OpenAI API error for document ${doc.id}:`, errorData);
           errors++;
           continue;
         }

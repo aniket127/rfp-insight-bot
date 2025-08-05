@@ -191,8 +191,10 @@ Available documents in knowledge base:`;
     if (documents && documents.length > 0) {
       systemPrompt += documents.map(doc => {
         const similarityInfo = doc.similarity ? ` (similarity: ${Math.round(doc.similarity * 100)}%)` : '';
-        return `\n- ${doc.title} (${doc.type}) - ${doc.client} - ${doc.industry}${similarityInfo} - ${doc.summary}`;
-      }).join('');
+        return `\n- Document: ${doc.title} (${doc.type}) - ${doc.client} - ${doc.industry}${similarityInfo}
+  Summary: ${doc.summary || 'No summary available'}
+  Content: ${doc.content ? doc.content.substring(0, 2000) : 'No content available'}...`;
+      }).join('\n');
     } else {
       systemPrompt += "\nNo directly relevant documents found in current search. Please provide general guidance or ask the user to be more specific.";
     }
