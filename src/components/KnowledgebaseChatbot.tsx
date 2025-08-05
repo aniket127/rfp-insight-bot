@@ -417,9 +417,20 @@ export const KnowledgebaseChatbot = () => {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-foreground">Recent Documents</h3>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                <Plus className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  onClick={generateEmbeddings}
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  title="Generate embeddings for better search"
+                >
+                  🔄
+                </Button>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <ScrollArea className="h-96">
               <div className="space-y-3">
