@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.generate-embeddings]
 verify_jwt = true
+
+[functions.upload-document]
+verify_jwt = true

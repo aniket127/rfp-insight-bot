@@ -89,7 +89,7 @@ serve(async (req) => {
           continue;
         }
 
-        // Generate embedding using OpenAI
+        // Generate embedding using OpenAI (using older, more accessible model)
         const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
           method: 'POST',
           headers: {
@@ -97,9 +97,8 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'text-embedding-3-small',
+            model: 'text-embedding-ada-002',
             input: textToEmbed,
-            encoding_format: 'float',
           }),
         });
 

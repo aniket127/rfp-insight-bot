@@ -1,0 +1,273 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Upload, FileText, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+
+interface DocumentUploadProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onUploadSuccess: () => void;
+}
+
+export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUploadProps) => {
+  const [formData, setFormData] = useState({
+    title: "",
+    type: "",
+    client: "",
+    industry: "",
+    summary: ""
+  });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const { toast } = useToast();
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      // Auto-fill title from filename if empty
+      if (!formData.title) {
+        setFormData(prev => ({
+          ...prev,
+          title: file.name.replace(/\.[^/.]+$/, "") // Remove extension
+        }));
+      }
+    }
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      toast({
+        title: "No file selected",
+        description: "Please select a file to upload.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.title || !formData.type || !formData.client || !formData.industry) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
+      // Prepare form data for upload
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', selectedFile);
+      uploadFormData.append('title', formData.title);
+      uploadFormData.append('type', formData.type);
+      uploadFormData.append('client', formData.client);
+      uploadFormData.append('industry', formData.industry);
+
+      const { data, error } = await supabase.functions.invoke('upload-document', {
+        body: uploadFormData,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Upload successful",
+        description: `${formData.title} has been uploaded and ${data.document.hasEmbedding ? 'vectorized for RAG search' : 'added to text search'}.`,
+      });
+
+      // Reset form
+      setFormData({
+        title: "",
+        type: "",
+        client: "",
+        industry: "",
+        summary: ""
+      });
+      setSelectedFile(null);
+      
+      onUploadSuccess();
+      onClose();
+
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to upload document. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeFile = () => {
+    setSelectedFile(null);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Upload className="h-5 w-5" />
+            Upload Document
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* File Upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Select File</CardTitle>
+              <CardDescription>
+                Supported formats: PDF, TXT, DOC, DOCX. For best results, use text files.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!selectedFile ? (
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <FileText className="h-8 w-8 text-muted-foreground" />
+                    <div className="text-sm text-muted-foreground">
+                      Click to select a file or drag and drop
+                    </div>
+                    <Input
+                      type="file"
+                      onChange={handleFileSelect}
+                      accept=".pdf,.txt,.doc,.docx,.md"
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <Label htmlFor="file-upload" className="cursor-pointer">
+                      <Button variant="outline" type="button">
+                        Choose File
+                      </Button>
+                    </Label>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-primary" />
+                    <div>
+                      <div className="font-medium">{selectedFile.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      </div>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={removeFile}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Document Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Document Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="title">Title *</Label>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
+                  placeholder="Enter document title"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="type">Type *</Label>
+                  <Select value={formData.type} onValueChange={(value) => handleInputChange('type', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select document type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="RFP">RFP</SelectItem>
+                      <SelectItem value="Case Study">Case Study</SelectItem>
+                      <SelectItem value="Proposal">Proposal</SelectItem>
+                      <SelectItem value="Win/Loss Analysis">Win/Loss Analysis</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="industry">Industry *</Label>
+                  <Input
+                    id="industry"
+                    value={formData.industry}
+                    onChange={(e) => handleInputChange('industry', e.target.value)}
+                    placeholder="e.g., Healthcare, Finance"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="client">Client *</Label>
+                <Input
+                  id="client"
+                  value={formData.client}
+                  onChange={(e) => handleInputChange('client', e.target.value)}
+                  placeholder="Enter client name"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="summary">Summary (Optional)</Label>
+                <Textarea
+                  id="summary"
+                  value={formData.summary}
+                  onChange={(e) => handleInputChange('summary', e.target.value)}
+                  placeholder="Brief description of the document contents..."
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose} disabled={isUploading}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpload} disabled={isUploading || !selectedFile}>
+              {isUploading ? "Uploading..." : "Upload & Process"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};

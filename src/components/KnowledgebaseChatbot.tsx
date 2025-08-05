@@ -7,6 +7,7 @@ import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { FilterPanel } from "./FilterPanel";
 import { DocumentCard } from "./DocumentCard";
+import { DocumentUpload } from "./DocumentUpload";
 import { Auth } from "./Auth";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -92,6 +93,7 @@ export const KnowledgebaseChatbot = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [filteredDocuments, setFilteredDocuments] = useState<Document[]>([]);
   const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -358,7 +360,11 @@ export const KnowledgebaseChatbot = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsUploadDialogOpen(true)}
+            >
               <Upload className="h-4 w-4 mr-1" />
               Upload Docs
             </Button>
@@ -476,6 +482,19 @@ export const KnowledgebaseChatbot = () => {
           </Tabs>
         </div>
       </div>
+
+      {/* Upload Dialog */}
+      <DocumentUpload
+        isOpen={isUploadDialogOpen}
+        onClose={() => setIsUploadDialogOpen(false)}
+        onUploadSuccess={() => {
+          loadDocuments(); // Refresh document list
+          toast({
+            title: "Document added",
+            description: "Your document has been added to the knowledge base.",
+          });
+        }}
+      />
     </div>
   );
 };
