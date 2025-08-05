@@ -1,19 +1,17 @@
 import { useState } from "react";
-import { Send, Paperclip, Mic, MicOff } from "lucide-react";
+import { Send, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
-  onFileUpload?: (files: FileList) => void;
   disabled?: boolean;
   placeholder?: string;
 }
 
 export const ChatInput = ({ 
   onSendMessage, 
-  onFileUpload, 
   disabled = false,
   placeholder = "Ask about RFPs, case studies, or search our knowledge base..."
 }: ChatInputProps) => {
@@ -35,11 +33,6 @@ export const ChatInput = ({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && onFileUpload) {
-      onFileUpload(e.target.files);
-    }
-  };
 
   const toggleVoiceInput = () => {
     setIsListening(!isListening);
@@ -59,24 +52,6 @@ export const ChatInput = ({
         />
         
         <div className="absolute bottom-3 right-3 flex items-center gap-2">
-          <input
-            type="file"
-            id="file-upload"
-            multiple
-            accept=".pdf,.docx,.xlsx,.html,.txt"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-          
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => document.getElementById("file-upload")?.click()}
-            className="h-8 w-8 p-0 hover:bg-accent"
-          >
-            <Paperclip className="h-4 w-4" />
-          </Button>
 
           <Button
             type="button"

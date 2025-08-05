@@ -236,13 +236,6 @@ export const KnowledgebaseChatbot = () => {
     }
   };
 
-  const handleFileUpload = (files: FileList) => {
-    const fileNames = Array.from(files).map(file => file.name);
-    toast({
-      title: "Files selected",
-      description: `Selected ${files.length} file(s): ${fileNames.join(", ")} - Complete upload form to process`,
-    });
-  };
 
   const handleFiltersChange = (filters: any) => {
     let filtered = [...documents];
@@ -450,7 +443,6 @@ export const KnowledgebaseChatbot = () => {
               <div className="p-6 border-t border-glass-border bg-card/50 backdrop-blur-sm">
                 <ChatInput
                   onSendMessage={handleSendMessage}
-                  onFileUpload={handleFileUpload}
                   disabled={isLoading}
                 />
               </div>
