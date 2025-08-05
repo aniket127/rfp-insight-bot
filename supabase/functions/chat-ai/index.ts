@@ -115,7 +115,7 @@ serve(async (req) => {
 
         // Use vector similarity search
         console.log('🔍 Starting vector similarity search...');
-        const { data: vectorDocs, error: vectorError } = await supabase
+        const { data: vectorDocs, error: vectorError } = await supabaseWithAuth
           .rpc('search_documents_by_similarity', {
             query_embedding: queryEmbedding,
             match_threshold: 0.7,
@@ -153,7 +153,7 @@ serve(async (req) => {
     console.log('🔍 Checking if text search fallback needed...');
     if (documents.length === 0) {
       console.log('🔍 Starting text search fallback...');
-      const { data: textDocs, error: searchError } = await supabase
+      const { data: textDocs, error: searchError } = await supabaseWithAuth
         .from('documents')
         .select('id, title, type, client, industry, geography, year, summary, content, tags')
         .or(`title.ilike.%${message}%,summary.ilike.%${message}%,content.ilike.%${message}%`)
