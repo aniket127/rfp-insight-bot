@@ -101,6 +101,7 @@ serve(async (req) => {
 
     let documents = [];
     let searchMethod = 'fallback';
+    let confidence = 0.3; // Base confidence for general knowledge
 
     if (embeddingResponse.ok) {
       try {
@@ -121,6 +122,13 @@ serve(async (req) => {
           documents = vectorDocs || [];
           searchMethod = 'vector';
           console.log(`Vector search found ${documents.length} relevant documents`);
+          
+          // Calculate confidence based on vector search results
+          if (documents.length > 0) {
+            const avgSimilarity = documents.reduce((sum, doc) => sum + (doc.similarity || 0), 0) / documents.length;
+            confidence = Math.min(0.95, 0.4 + (avgSimilarity * 0.6)); // Scale from 0.4 to 0.95
+            console.log(`Average similarity: ${avgSimilarity.toFixed(3)}, Confidence: ${confidence.toFixed(3)}`);
+          }
         }
       } catch (error) {
         console.error('Error processing embeddings:', error);
@@ -141,6 +149,12 @@ serve(async (req) => {
         documents = textDocs || [];
         searchMethod = 'text';
         console.log(`Text search found ${documents.length} relevant documents`);
+        
+        // Lower confidence for text-based search
+        if (documents.length > 0) {
+          confidence = 0.6 + (documents.length * 0.05); // 0.6 to 0.85 based on results count
+          console.log(`Text search confidence: ${confidence.toFixed(3)}`);
+        }
       }
     }
 
@@ -233,7 +247,7 @@ Available documents in knowledge base:`;
         type: 'bot',
         content: aiResponse,
         sources: sources,
-        confidence: 0.85,
+        confidence: confidence,
         user_id: user.id
       });
 
@@ -246,7 +260,7 @@ Available documents in knowledge base:`;
         response: aiResponse, 
         sources: sources,
         conversationId: currentConversationId,
-        confidence: 0.85
+        confidence: confidence
       }), 
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
