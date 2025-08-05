@@ -118,7 +118,7 @@ serve(async (req) => {
         const { data: vectorDocs, error: vectorError } = await supabaseWithAuth
           .rpc('search_documents_by_similarity', {
             query_embedding: queryEmbedding,
-            match_threshold: 0.7,
+            match_threshold: 0.5,
             match_count: 5
           });
 
