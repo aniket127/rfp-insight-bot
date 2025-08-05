@@ -17,7 +17,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🚀 Chat AI function called');
+    console.log('🚀 Chat AI function called at', new Date().toISOString());
     
     if (!openAIApiKey) {
       console.error('❌ OpenAI API key not found');
@@ -79,10 +79,10 @@ serve(async (req) => {
       throw new Error('Message is required');
     }
 
-    console.log('✅ Processing message:', message.substring(0, 100));
+    console.log('✅ Processing message:', message.substring(0, 100), 'at', new Date().toISOString());
 
     // Generate embedding for the user's query
-    console.log('🔍 Generating embedding for query...');
+    console.log('🔍 Generating embedding for query with OpenAI...');
     const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: {
@@ -95,7 +95,7 @@ serve(async (req) => {
       }),
     });
 
-    console.log('📊 Embedding response status:', embeddingResponse.status);
+    console.log('📊 OpenAI embedding response status:', embeddingResponse.status, 'at', new Date().toISOString());
 
     let documents = [];
     let searchMethod = 'fallback';
