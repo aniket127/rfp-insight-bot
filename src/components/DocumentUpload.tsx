@@ -39,6 +39,12 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
           title: file.name.replace(/\.[^/.]+$/, "") // Remove extension
         }));
       }
+      
+      // Show confirmation that file is selected, not uploaded
+      toast({
+        title: "File selected",
+        description: `${file.name} is ready to upload. Please fill in the document information below.`,
+      });
     }
   };
 
@@ -182,28 +188,36 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-primary" />
-                    <div>
-                      <div className="font-medium">{selectedFile.name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg border-2 border-dashed border-primary/20">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-primary" />
+                      <div>
+                        <div className="font-medium text-primary">✓ {selectedFile.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • Ready to upload
+                        </div>
                       </div>
                     </div>
+                    <Button variant="ghost" size="sm" onClick={removeFile}>
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={removeFile}>
-                    <X className="h-4 w-4" />
-                  </Button>
+                  <div className="text-sm text-muted-foreground text-center">
+                    📝 Please fill in the document information below, then click "Upload & Process"
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
           {/* Document Information */}
-          <Card>
+          <Card className={selectedFile ? "ring-2 ring-primary/20" : ""}>
             <CardHeader>
-              <CardTitle className="text-lg">Document Information</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                Document Information
+                {selectedFile && <span className="text-sm text-primary">• Required</span>}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -274,8 +288,19 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
             <Button variant="outline" onClick={onClose} disabled={isUploading}>
               Cancel
             </Button>
-            <Button onClick={handleUpload} disabled={isUploading || !selectedFile}>
-              {isUploading ? "Uploading..." : "Upload & Process"}
+            <Button 
+              onClick={handleUpload} 
+              disabled={isUploading || !selectedFile || !formData.title || !formData.type || !formData.client || !formData.industry}
+              className="min-w-[140px]"
+            >
+              {isUploading ? (
+                <div className="flex items-center gap-2">
+                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  Uploading...
+                </div>
+              ) : (
+                "Upload & Process"
+              )}
             </Button>
           </div>
         </div>
