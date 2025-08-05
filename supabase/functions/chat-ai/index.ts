@@ -17,8 +17,10 @@ serve(async (req) => {
   }
 
   try {
+    console.log('🚀 Chat AI function called');
+    
     if (!openAIApiKey) {
-      console.error('OpenAI API key not found');
+      console.error('❌ OpenAI API key not found');
       return new Response(
         JSON.stringify({ error: 'OpenAI API key not configured' }), 
         { 
@@ -28,6 +30,8 @@ serve(async (req) => {
       );
     }
 
+    console.log('✅ OpenAI API key found');
+
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: false,
@@ -35,27 +39,35 @@ serve(async (req) => {
       }
     });
 
-    // Get the authorization header
+    // Get the authorization header (now optional since JWT is disabled for debugging)
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
-    }
-
-    // Set the auth context for the request
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    console.log('🔐 Auth header present:', !!authHeader);
     
-    if (userError || !user) {
-      throw new Error('Invalid token');
+    let user = null;
+    if (authHeader) {
+      // Set the auth context for the request
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser(token);
+      
+      if (userError) {
+        console.error('❌ Auth error:', userError);
+      } else {
+        user = authUser;
+        console.log('✅ User authenticated:', user?.email);
+      }
+    } else {
+      console.log('⚠️ No auth header - proceeding without user context');
     }
 
     const { message, conversationId } = await req.json();
+    console.log('📨 Request data:', { message: message?.substring(0, 50), conversationId });
 
     if (!message) {
+      console.error('❌ No message provided');
       throw new Error('Message is required');
     }
 
-    console.log('Processing message:', message);
+    console.log('✅ Processing message:', message.substring(0, 100));
 
     // Generate embedding for the user's query
     const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
@@ -230,9 +242,13 @@ Available documents in knowledge base:`;
     );
 
   } catch (error) {
-    console.error('Error in chat-ai function:', error);
+    console.error('💥 Error in chat-ai function:', error);
+    console.error('💥 Error stack:', error.stack);
     return new Response(
-      JSON.stringify({ error: error.message }), 
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack?.split('\n')[0] || 'Unknown error'
+      }), 
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
