@@ -89,8 +89,12 @@ serve(async (req) => {
           continue;
         }
 
-        // Generate embedding using OpenAI (using older, more accessible model)
-        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+        // Generate embedding using OpenAI (try different models for compatibility)
+        let embeddingResponse;
+        let embedding;
+        
+        // Try text-embedding-ada-002 first
+        embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${openAIApiKey}`,
@@ -103,6 +107,22 @@ serve(async (req) => {
         });
 
         if (!embeddingResponse.ok) {
+          // Try text-embedding-3-small as fallback
+          console.log(`text-embedding-ada-002 failed for document ${doc.id}, trying text-embedding-3-small`);
+          embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openAIApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'text-embedding-3-small',
+              input: textToEmbed,
+            }),
+          });
+        }
+
+        if (!embeddingResponse.ok) {
           const errorData = await embeddingResponse.text();
           console.error(`OpenAI API error for document ${doc.id}:`, errorData);
           errors++;
@@ -110,7 +130,7 @@ serve(async (req) => {
         }
 
         const embeddingData = await embeddingResponse.json();
-        const embedding = embeddingData.data[0].embedding;
+        embedding = embeddingData.data[0].embedding;
 
         // Update document with embedding
         const { error: updateError } = await supabase
