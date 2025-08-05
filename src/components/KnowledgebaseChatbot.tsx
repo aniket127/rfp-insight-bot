@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bot, Upload, Search, BookOpen, Settings, Plus, LogOut } from "lucide-react";
+import { Bot, Upload, Search, BookOpen, Plus, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -367,17 +367,6 @@ export const KnowledgebaseChatbot = () => {
             >
               <Upload className="h-4 w-4 mr-1" />
               Upload Docs
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleGenerateEmbeddings}
-              disabled={isGeneratingEmbeddings}
-            >
-              {isGeneratingEmbeddings ? "Generating..." : "Generate RAG"}
-            </Button>
-            <Button variant="ghost" size="sm">
-              <Settings className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={handleSignOut}>
               <LogOut className="h-4 w-4" />
