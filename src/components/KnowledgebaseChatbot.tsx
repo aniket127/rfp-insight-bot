@@ -91,6 +91,7 @@ export const KnowledgebaseChatbot = () => {
   const [activeTab, setActiveTab] = useState("chat");
   const [documents, setDocuments] = useState<Document[]>([]);
   const [filteredDocuments, setFilteredDocuments] = useState<Document[]>([]);
+  const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -287,6 +288,44 @@ export const KnowledgebaseChatbot = () => {
     setCurrentConversationId(null);
   };
 
+  const handleGenerateEmbeddings = async () => {
+    setIsGeneratingEmbeddings(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
+      const { data, error } = await supabase.functions.invoke('generate-embeddings', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Embeddings Generated",
+        description: `Processed ${data.processed} documents. ${data.errors > 0 ? `${data.errors} errors occurred.` : 'RAG is now ready!'}`,
+      });
+
+      // Reload documents to get updated embeddings status
+      loadDocuments();
+      
+    } catch (error: any) {
+      console.error('Error generating embeddings:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate embeddings. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingEmbeddings(false);
+    }
+  };
+
   if (isAuthLoading) {
     return (
       <div className="h-screen bg-background flex items-center justify-center">
@@ -322,6 +361,14 @@ export const KnowledgebaseChatbot = () => {
             <Button variant="outline" size="sm">
               <Upload className="h-4 w-4 mr-1" />
               Upload Docs
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleGenerateEmbeddings}
+              disabled={isGeneratingEmbeddings}
+            >
+              {isGeneratingEmbeddings ? "Generating..." : "Generate RAG"}
             </Button>
             <Button variant="ghost" size="sm">
               <Settings className="h-4 w-4" />

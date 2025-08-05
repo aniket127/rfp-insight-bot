@@ -57,29 +57,85 @@ serve(async (req) => {
 
     console.log('Processing message:', message);
 
-    // Search documents based on message content
-    const { data: documents, error: searchError } = await supabase
-      .from('documents')
-      .select('*')
-      .or(`title.ilike.%${message}%,summary.ilike.%${message}%,content.ilike.%${message}%`)
-      .limit(5);
+    // Generate embedding for the user's query
+    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-3-small',
+        input: message,
+        encoding_format: 'float',
+      }),
+    });
 
-    if (searchError) {
-      console.error('Search error:', searchError);
+    if (!embeddingResponse.ok) {
+      const errorData = await embeddingResponse.text();
+      console.error('OpenAI embedding API error:', errorData);
+    }
+
+    let documents = [];
+    let searchMethod = 'fallback';
+
+    if (embeddingResponse.ok) {
+      try {
+        const embeddingData = await embeddingResponse.json();
+        const queryEmbedding = embeddingData.data[0].embedding;
+
+        // Use vector similarity search
+        const { data: vectorDocs, error: vectorError } = await supabase
+          .rpc('search_documents_by_similarity', {
+            query_embedding: queryEmbedding,
+            match_threshold: 0.7,
+            match_count: 5
+          });
+
+        if (vectorError) {
+          console.error('Vector search error:', vectorError);
+        } else {
+          documents = vectorDocs || [];
+          searchMethod = 'vector';
+          console.log(`Vector search found ${documents.length} relevant documents`);
+        }
+      } catch (error) {
+        console.error('Error processing embeddings:', error);
+      }
+    }
+
+    // Fallback to text search if vector search fails or finds no results
+    if (documents.length === 0) {
+      const { data: textDocs, error: searchError } = await supabase
+        .from('documents')
+        .select('*, NULL as similarity')
+        .or(`title.ilike.%${message}%,summary.ilike.%${message}%,content.ilike.%${message}%`)
+        .limit(5);
+
+      if (searchError) {
+        console.error('Text search error:', searchError);
+      } else {
+        documents = textDocs || [];
+        searchMethod = 'text';
+        console.log(`Text search found ${documents.length} relevant documents`);
+      }
     }
 
     let systemPrompt = `You are a knowledgeable assistant that helps users find information from a repository of RFPs, case studies, and proposals. 
 
 Based on the user's query, provide helpful and accurate information. If you find relevant documents in the knowledge base, reference them in your response.
 
+Search method used: ${searchMethod} ${searchMethod === 'vector' ? '(semantic similarity)' : '(keyword matching)'}
+
 Available documents in knowledge base:`;
 
     if (documents && documents.length > 0) {
-      systemPrompt += documents.map(doc => 
-        `\n- ${doc.title} (${doc.type}) - ${doc.client} - ${doc.industry} - ${doc.summary}`
-      ).join('');
+      systemPrompt += documents.map(doc => {
+        const similarityInfo = doc.similarity ? ` (similarity: ${Math.round(doc.similarity * 100)}%)` : '';
+        return `\n- ${doc.title} (${doc.type}) - ${doc.client} - ${doc.industry}${similarityInfo} - ${doc.summary}`;
+      }).join('');
     } else {
-      systemPrompt += "\nNo directly relevant documents found in current search.";
+      systemPrompt += "\nNo directly relevant documents found in current search. Please provide general guidance or ask the user to be more specific.";
     }
 
     // Call OpenAI API
@@ -96,7 +152,7 @@ Available documents in knowledge base:`;
           { role: 'user', content: message }
         ],
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 1500,
       }),
     });
 

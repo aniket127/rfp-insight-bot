@@ -2,3 +2,6 @@ project_id = "wdalawzjpqkfemiwhlpu"
 
 [functions.chat-ai]
 verify_jwt = true
+
+[functions.generate-embeddings]
+verify_jwt = true
