@@ -131,7 +131,7 @@ serve(async (req) => {
     if (documents.length === 0) {
       const { data: textDocs, error: searchError } = await supabase
         .from('documents')
-        .select('*, NULL as similarity')
+        .select('id, title, type, client, industry, geography, year, summary, content, tags')
         .or(`title.ilike.%${message}%,summary.ilike.%${message}%,content.ilike.%${message}%`)
         .limit(5);
 
