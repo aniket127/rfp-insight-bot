@@ -29,9 +29,12 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
   const { toast } = useToast();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('🔍 File selection triggered');
     const file = e.target.files?.[0];
     if (file) {
+      console.log('📁 File selected:', file.name, 'Size:', file.size);
       setSelectedFile(file);
+      
       // Auto-fill title from filename if empty
       if (!formData.title) {
         setFormData(prev => ({
@@ -40,11 +43,13 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
         }));
       }
       
-      // Show confirmation that file is selected, not uploaded
+      // Show confirmation that file is selected, NOT uploaded
       toast({
-        title: "File selected",
-        description: `${file.name} is ready to upload. Please fill in the document information below.`,
+        title: "✅ File Ready",
+        description: `${file.name} selected. Fill in details below to upload.`,
       });
+      
+      console.log('✅ File selection complete - NO upload triggered');
     }
   };
 
@@ -56,6 +61,8 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
   };
 
   const handleUpload = async () => {
+    console.log('🚀 ACTUAL UPLOAD STARTED - Button clicked');
+    
     if (!selectedFile) {
       toast({
         title: "No file selected",
@@ -189,22 +196,31 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg border-2 border-dashed border-primary/20">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-primary" />
+                  <div className="flex items-center justify-between p-4 bg-green-50 border-2 border-green-200 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-green-600" />
+                      </div>
                       <div>
-                        <div className="font-medium text-primary">✓ {selectedFile.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • Ready to upload
+                        <div className="font-semibold text-green-800">
+                          📁 {selectedFile.name}
+                        </div>
+                        <div className="text-sm text-green-600">
+                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • Selected (Not uploaded yet)
                         </div>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={removeFile}>
+                    <Button variant="ghost" size="sm" onClick={removeFile} className="text-green-600 hover:text-green-800">
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="text-sm text-muted-foreground text-center">
-                    📝 Please fill in the document information below, then click "Upload & Process"
+                  <div className="text-center p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm font-medium text-blue-800">
+                      📝 Step 2: Fill in document details below
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Upload will happen only when you click "Upload & Process"
+                    </p>
                   </div>
                 </div>
               )}
@@ -291,15 +307,18 @@ export const DocumentUpload = ({ isOpen, onClose, onUploadSuccess }: DocumentUpl
             <Button 
               onClick={handleUpload} 
               disabled={isUploading || !selectedFile || !formData.title || !formData.type || !formData.client || !formData.industry}
-              className="min-w-[140px]"
+              className="min-w-[160px] bg-blue-600 hover:bg-blue-700"
+              size="lg"
             >
               {isUploading ? (
                 <div className="flex items-center gap-2">
                   <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Uploading...
+                  Uploading to Backend...
                 </div>
               ) : (
-                "Upload & Process"
+                <div className="flex items-center gap-2">
+                  🚀 Upload & Process Document
+                </div>
               )}
             </Button>
           </div>
