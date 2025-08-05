@@ -80,18 +80,33 @@ serve(async (req) => {
 
     console.log(`Processing file upload: ${file.name}`);
 
-    // Extract text content from file
+    // Extract and preprocess text content from file
     let textContent = '';
     const fileType = file.type.toLowerCase();
     
     if (fileType.includes('text') || fileType.includes('plain')) {
       textContent = await file.text();
+    } else if (fileType.includes('json')) {
+      const jsonContent = await file.text();
+      try {
+        const parsed = JSON.parse(jsonContent);
+        textContent = JSON.stringify(parsed, null, 2);
+      } catch {
+        textContent = jsonContent;
+      }
     } else if (fileType.includes('pdf')) {
-      // For PDF files, we'll store basic info and let user know to use text format
-      textContent = `PDF file: ${file.name}. Please convert to text format for full content extraction.`;
+      textContent = `PDF Document: ${title}. Industry: ${industry}. Client: ${client}. This is a ${type} document. To get better search results, please upload the content in text format.`;
+    } else if (fileType.includes('word') || fileType.includes('doc')) {
+      textContent = `Word Document: ${title}. Industry: ${industry}. Client: ${client}. This is a ${type} document. To get better search results, please upload the content in text format.`;
     } else {
-      textContent = `File: ${file.name} (${fileType}). Content extraction not supported for this file type.`;
+      textContent = `Document: ${title}. Industry: ${industry}. Client: ${client}. Type: ${type}. File format: ${fileType}. Please upload in text format for full content search.`;
     }
+
+    // Clean and normalize text content
+    textContent = textContent
+      .replace(/\s+/g, ' ')  // Replace multiple spaces with single space
+      .replace(/\n\s*\n/g, '\n')  // Remove empty lines
+      .trim();
 
     // Upload file to storage
     const fileName = `${user.id}/${Date.now()}_${file.name}`;
@@ -114,14 +129,10 @@ serve(async (req) => {
       .from('documents')
       .getPublicUrl(fileName);
 
-    // Prepare content for embedding
-    const contentForEmbedding = [
-      title,
-      textContent.substring(0, 8000), // Limit content size for embedding
-      `Industry: ${industry}`,
-      `Client: ${client}`,
-      `Type: ${type}`
-    ].filter(Boolean).join(' ');
+    // Prepare optimized content for embedding with structured format
+    const metadataContent = `Document Title: ${title}\nDocument Type: ${type}\nClient: ${client}\nIndustry: ${industry}\n\n`;
+    const mainContent = textContent.substring(0, 7000); // Leave space for metadata
+    const contentForEmbedding = metadataContent + mainContent;
 
     // Generate embedding for the document
     let embedding = null;
@@ -135,6 +146,7 @@ serve(async (req) => {
         body: JSON.stringify({
           model: 'text-embedding-3-small',
           input: contentForEmbedding,
+          dimensions: 1536
         }),
       });
 
@@ -164,7 +176,7 @@ serve(async (req) => {
         file_url: publicUrl,
         user_id: user.id,
         embeddings: embedding,
-        tags: [industry, type, client] // Basic tags from metadata
+        tags: [industry.toLowerCase(), type.toLowerCase(), client.toLowerCase()].filter(Boolean)
       })
       .select()
       .single();

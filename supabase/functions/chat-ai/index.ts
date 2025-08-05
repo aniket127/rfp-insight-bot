@@ -118,8 +118,8 @@ serve(async (req) => {
         const { data: vectorDocs, error: vectorError } = await supabaseWithAuth
           .rpc('search_documents_by_similarity', {
             query_embedding: queryEmbedding,
-            match_threshold: 0.5,
-            match_count: 5
+            match_threshold: 0.3,  // Lower threshold for better recall
+            match_count: 8        // Get more documents for better context
           });
 
         console.log('📊 Vector search completed');
@@ -180,23 +180,36 @@ serve(async (req) => {
 
     console.log(`🎯 Final results: ${documents.length} documents, confidence: ${confidence.toFixed(3)}, method: ${searchMethod}`);
 
-    let systemPrompt = `You are a knowledgeable assistant that helps users find information from a repository of RFPs, case studies, and proposals. 
+    let systemPrompt = `You are an expert knowledge assistant that analyzes and retrieves information from a repository of business documents including RFPs, case studies, proposals, and reports.
 
-Based on the user's query, provide helpful and accurate information. If you find relevant documents in the knowledge base, reference them in your response.
+INSTRUCTIONS:
+1. Always prioritize information from the provided documents
+2. Quote specific sections when referencing document content
+3. If documents contain relevant information, base your answer primarily on that content
+4. Be specific and detailed when document content is available
+5. Clearly indicate which documents you're referencing
 
-Search method used: ${searchMethod} ${searchMethod === 'vector' ? '(semantic similarity)' : '(keyword matching)'}
+Search method: ${searchMethod} ${searchMethod === 'vector' ? '(semantic similarity search)' : '(keyword text search)'}
+Confidence level: ${confidence.toFixed(2)}
 
-Available documents in knowledge base:`;
+AVAILABLE DOCUMENTS WITH CONTENT:`;
 
     if (documents && documents.length > 0) {
-      systemPrompt += documents.map(doc => {
-        const similarityInfo = doc.similarity ? ` (similarity: ${Math.round(doc.similarity * 100)}%)` : '';
-        return `\n- Document: ${doc.title} (${doc.type}) - ${doc.client} - ${doc.industry}${similarityInfo}
-  Summary: ${doc.summary || 'No summary available'}
-  Content: ${doc.content ? doc.content.substring(0, 2000) : 'No content available'}...`;
-      }).join('\n');
+      systemPrompt += documents.map((doc, index) => {
+        const similarityInfo = doc.similarity ? ` (${Math.round(doc.similarity * 100)}% relevance)` : '';
+        const contentPreview = doc.content ? 
+          doc.content.substring(0, 3000) + (doc.content.length > 3000 ? '...' : '') : 
+          doc.summary || 'No content available';
+        
+        return `
+
+DOCUMENT ${index + 1}: "${doc.title}"${similarityInfo}
+Type: ${doc.type} | Client: ${doc.client} | Industry: ${doc.industry}
+Content: ${contentPreview}
+---`;
+      }).join('');
     } else {
-      systemPrompt += "\nNo directly relevant documents found in current search. Please provide general guidance or ask the user to be more specific.";
+      systemPrompt += "\n\nNo relevant documents found. Provide general guidance and suggest the user be more specific about their query.";
     }
 
     // Call OpenAI API

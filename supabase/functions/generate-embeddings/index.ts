@@ -92,16 +92,23 @@ serve(async (req) => {
       try {
         console.log(`Processing document ${doc.id}: ${doc.title}`);
         
-        // Combine title, summary, and content for embedding
-        const textToEmbed = [
-          doc.title,
-          doc.summary || '',
-          doc.content || ''
-        ].filter(Boolean).join(' ');
+        // Create structured content for better embeddings
+        const titleSection = `Document Title: ${doc.title}\n`;
+        const summarySection = doc.summary ? `Summary: ${doc.summary}\n\n` : '';
+        const contentSection = doc.content || '';
+        
+        const textToEmbed = titleSection + summarySection + contentSection;
 
-        console.log(`Text to embed length: ${textToEmbed.length} characters`);
+        // Clean and optimize text for embedding
+        const cleanedText = textToEmbed
+          .replace(/\s+/g, ' ')
+          .replace(/\n\s*\n/g, '\n')
+          .trim()
+          .substring(0, 8000); // OpenAI embedding limit
 
-        if (!textToEmbed.trim()) {
+        console.log(`Text to embed length: ${cleanedText.length} characters`);
+
+        if (!cleanedText.trim()) {
           console.log(`Skipping document ${doc.id} - no content to embed`);
           continue;
         }
@@ -115,7 +122,8 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             model: 'text-embedding-3-small',
-            input: textToEmbed,
+            input: cleanedText,
+            dimensions: 1536  // Optimize for better search performance
           }),
         });
 
