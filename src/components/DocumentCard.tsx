@@ -1,4 +1,4 @@
-import { FileText, Calendar, Building, MapPin, ExternalLink, Download } from "lucide-react";
+import { FileText, Calendar, Building, MapPin, ExternalLink, Download, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -16,6 +16,7 @@ interface DocumentCardProps {
   confidence?: number;
   onView?: () => void;
   onDownload?: () => void;
+  onDelete?: () => void;
   className?: string;
 }
 
@@ -38,6 +39,7 @@ export const DocumentCard = ({
   confidence,
   onView,
   onDownload,
+  onDelete,
   className
 }: DocumentCardProps) => {
   return (
@@ -130,6 +132,16 @@ export const DocumentCard = ({
           >
             <Download className="h-3 w-3" />
           </Button>
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
         </div>
       </CardFooter>
     </Card>

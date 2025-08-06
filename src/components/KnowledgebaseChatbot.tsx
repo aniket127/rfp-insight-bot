@@ -142,9 +142,33 @@ export const KnowledgebaseChatbot = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+
+      // Filter out documents with broken file URLs
+      const validDocs = [];
+      for (const doc of data) {
+        if (doc.file_url) {
+          try {
+            // Check if file exists in storage
+            const response = await fetch(doc.file_url, { method: 'HEAD' });
+            if (response.ok) {
+              validDocs.push(doc);
+            } else {
+              // File doesn't exist, delete the database record
+              await supabase.from('documents').delete().eq('id', doc.id);
+              console.log(`Deleted orphaned document: ${doc.title}`);
+            }
+          } catch {
+            // Network error or file doesn't exist, delete the record
+            await supabase.from('documents').delete().eq('id', doc.id);
+            console.log(`Deleted orphaned document: ${doc.title}`);
+          }
+        } else {
+          validDocs.push(doc);
+        }
+      }
       
       // Transform the data to match our interface
-      const transformedDocs = data.map(doc => ({
+      const transformedDocs = validDocs.map(doc => ({
         id: doc.id,
         title: doc.title,
         type: doc.type as "RFP" | "Case Study" | "Proposal" | "Win/Loss Analysis",
@@ -165,6 +189,49 @@ export const KnowledgebaseChatbot = () => {
       toast({
         title: "Error loading documents",
         description: "Failed to load documents from the database.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteDocument = async (documentId: string) => {
+    try {
+      const document = documents.find(doc => doc.id === documentId);
+      if (!document) return;
+
+      // Delete from storage if file_url exists
+      if (document.file_url) {
+        const fileName = document.file_url.split('/').pop();
+        if (fileName) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await supabase.storage
+              .from('documents')
+              .remove([`${user.id}/${fileName}`]);
+          }
+        }
+      }
+
+      // Delete from database
+      const { error } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', documentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Document deleted",
+        description: "The document has been removed successfully.",
+      });
+
+      // Reload documents
+      loadDocuments();
+    } catch (error: any) {
+      console.error('Error deleting document:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete document.",
         variant: "destructive",
       });
     }
@@ -446,29 +513,30 @@ export const KnowledgebaseChatbot = () => {
                         toast({ title: "File not available", description: "Document file not found", variant: "destructive" });
                       }
                     }}
-                    onDownload={() => {
-                      if (doc.file_url) {
-                        // Create a proper download link
-                        fetch(doc.file_url)
-                          .then(response => response.blob())
-                          .then(blob => {
-                            const url = window.URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = doc.title + '.pdf';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            window.URL.revokeObjectURL(url);
-                            toast({ title: "Download started", description: doc.title });
-                          })
-                          .catch(() => {
-                            toast({ title: "Download failed", description: "Could not download the file", variant: "destructive" });
-                          });
-                      } else {
-                        toast({ title: "Download not available", description: "This document doesn't have an uploaded file", variant: "destructive" });
-                      }
-                    }}
+                     onDownload={() => {
+                       if (doc.file_url) {
+                         // Create a proper download link
+                         fetch(doc.file_url)
+                           .then(response => response.blob())
+                           .then(blob => {
+                             const url = window.URL.createObjectURL(blob);
+                             const link = document.createElement('a');
+                             link.href = url;
+                             link.download = doc.title + '.pdf';
+                             document.body.appendChild(link);
+                             link.click();
+                             document.body.removeChild(link);
+                             window.URL.revokeObjectURL(url);
+                             toast({ title: "Download started", description: doc.title });
+                           })
+                           .catch(() => {
+                             toast({ title: "Download failed", description: "Could not download the file", variant: "destructive" });
+                           });
+                       } else {
+                         toast({ title: "Download not available", description: "This document doesn't have an uploaded file", variant: "destructive" });
+                       }
+                     }}
+                     onDelete={() => handleDeleteDocument(doc.id)}
                   />
                 ))}
               </div>
@@ -540,29 +608,30 @@ export const KnowledgebaseChatbot = () => {
                         toast({ title: "File not available", description: "Document file not found", variant: "destructive" });
                       }
                     }}
-                    onDownload={() => {
-                      if (doc.file_url) {
-                        // Create a proper download link
-                        fetch(doc.file_url)
-                          .then(response => response.blob())
-                          .then(blob => {
-                            const url = window.URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = doc.title + '.pdf';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            window.URL.revokeObjectURL(url);
-                            toast({ title: "Download started", description: doc.title });
-                          })
-                          .catch(() => {
-                            toast({ title: "Download failed", description: "Could not download the file", variant: "destructive" });
-                          });
-                      } else {
-                        toast({ title: "Download not available", description: "This document doesn't have an uploaded file", variant: "destructive" });
-                      }
-                    }}
+                     onDownload={() => {
+                       if (doc.file_url) {
+                         // Create a proper download link
+                         fetch(doc.file_url)
+                           .then(response => response.blob())
+                           .then(blob => {
+                             const url = window.URL.createObjectURL(blob);
+                             const link = document.createElement('a');
+                             link.href = url;
+                             link.download = doc.title + '.pdf';
+                             document.body.appendChild(link);
+                             link.click();
+                             document.body.removeChild(link);
+                             window.URL.revokeObjectURL(url);
+                             toast({ title: "Download started", description: doc.title });
+                           })
+                           .catch(() => {
+                             toast({ title: "Download failed", description: "Could not download the file", variant: "destructive" });
+                           });
+                       } else {
+                         toast({ title: "Download not available", description: "This document doesn't have an uploaded file", variant: "destructive" });
+                       }
+                     }}
+                     onDelete={() => handleDeleteDocument(doc.id)}
                   />
                 ))}
               </div>
