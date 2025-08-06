@@ -93,6 +93,7 @@ export const KnowledgebaseChatbot = () => {
   const [activeTab, setActiveTab] = useState("chat");
   const [documents, setDocuments] = useState<Document[]>([]);
   const [filteredDocuments, setFilteredDocuments] = useState<Document[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -136,6 +137,7 @@ export const KnowledgebaseChatbot = () => {
 
   const loadDocuments = async () => {
     try {
+      setIsRefreshing(true);
       console.log('🔄 Loading documents...');
       const { data, error } = await supabase
         .from('documents')
@@ -185,6 +187,11 @@ export const KnowledgebaseChatbot = () => {
           title: "Cleanup completed",
           description: `Removed ${deletedCount} orphaned document${deletedCount > 1 ? 's' : ''} from the list.`,
         });
+      } else {
+        toast({
+          title: "Documents refreshed",
+          description: `All ${validDocs.length} documents are valid. No cleanup needed.`,
+        });
       }
       
       // Transform the data to match our interface
@@ -212,6 +219,8 @@ export const KnowledgebaseChatbot = () => {
         description: "Failed to load documents from the database.",
         variant: "destructive",
       });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -516,15 +525,16 @@ export const KnowledgebaseChatbot = () => {
                  >
                    🔄
                  </Button>
-                 <Button 
-                   onClick={loadDocuments}
-                   variant="ghost"
-                   size="sm"
-                   className="h-6 px-2 text-xs"
-                   title="Refresh documents and cleanup orphaned records"
-                 >
-                   🔄📋
-                 </Button>
+                  <Button 
+                    onClick={loadDocuments}
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    title="Refresh documents and cleanup orphaned records"
+                    disabled={isRefreshing}
+                  >
+                    {isRefreshing ? "🔄" : "🔄📋"}
+                  </Button>
                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                    <Plus className="h-4 w-4" />
                  </Button>
