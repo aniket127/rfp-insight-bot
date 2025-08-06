@@ -136,6 +136,7 @@ export const KnowledgebaseChatbot = () => {
 
   const loadDocuments = async () => {
     try {
+      console.log('🔄 Loading documents...');
       const { data, error } = await supabase
         .from('documents')
         .select('*')
@@ -143,28 +144,47 @@ export const KnowledgebaseChatbot = () => {
 
       if (error) throw error;
 
+      console.log(`📊 Found ${data.length} documents in database`);
+
       // Filter out documents with broken file URLs
       const validDocs = [];
+      let deletedCount = 0;
+      
       for (const doc of data) {
         if (doc.file_url) {
           try {
+            console.log(`🔍 Checking file existence for: ${doc.title}`);
             // Check if file exists in storage
             const response = await fetch(doc.file_url, { method: 'HEAD' });
             if (response.ok) {
+              console.log(`✅ File exists: ${doc.title}`);
               validDocs.push(doc);
             } else {
+              console.log(`❌ File missing (${response.status}): ${doc.title}`);
               // File doesn't exist, delete the database record
               await supabase.from('documents').delete().eq('id', doc.id);
-              console.log(`Deleted orphaned document: ${doc.title}`);
+              deletedCount++;
+              console.log(`🗑️ Deleted orphaned document: ${doc.title}`);
             }
-          } catch {
+          } catch (error) {
+            console.log(`❌ Network error checking file: ${doc.title}`, error);
             // Network error or file doesn't exist, delete the record
             await supabase.from('documents').delete().eq('id', doc.id);
-            console.log(`Deleted orphaned document: ${doc.title}`);
+            deletedCount++;
+            console.log(`🗑️ Deleted orphaned document: ${doc.title}`);
           }
         } else {
+          console.log(`📄 Document without file: ${doc.title}`);
           validDocs.push(doc);
         }
+      }
+
+      if (deletedCount > 0) {
+        console.log(`🧹 Cleaned up ${deletedCount} orphaned documents`);
+        toast({
+          title: "Cleanup completed",
+          description: `Removed ${deletedCount} orphaned document${deletedCount > 1 ? 's' : ''} from the list.`,
+        });
       }
       
       // Transform the data to match our interface
@@ -182,10 +202,11 @@ export const KnowledgebaseChatbot = () => {
         file_url: doc.file_url
       }));
 
+      console.log(`📋 Displaying ${transformedDocs.length} valid documents`);
       setDocuments(transformedDocs);
       setFilteredDocuments(transformedDocs);
     } catch (error) {
-      console.error('Error loading documents:', error);
+      console.error('❌ Error loading documents:', error);
       toast({
         title: "Error loading documents",
         description: "Failed to load documents from the database.",
@@ -482,23 +503,33 @@ export const KnowledgebaseChatbot = () => {
           <FilterPanel onFiltersChange={handleFiltersChange} />
           
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-foreground">Recent Documents</h3>
-              <div className="flex gap-1">
-                <Button
-                  onClick={generateEmbeddings}
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                  title="Generate embeddings for better search"
-                >
-                  🔄
-                </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+             <div className="flex items-center justify-between">
+               <h3 className="text-sm font-medium text-foreground">Recent Documents</h3>
+               <div className="flex gap-1">
+                 <Button
+                   onClick={handleGenerateEmbeddings}
+                   variant="ghost"
+                   size="sm"
+                   className="h-6 px-2 text-xs"
+                   title="Generate embeddings for better search"
+                   disabled={isGeneratingEmbeddings}
+                 >
+                   🔄
+                 </Button>
+                 <Button 
+                   onClick={loadDocuments}
+                   variant="ghost"
+                   size="sm"
+                   className="h-6 px-2 text-xs"
+                   title="Refresh documents and cleanup orphaned records"
+                 >
+                   🔄📋
+                 </Button>
+                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                   <Plus className="h-4 w-4" />
+                 </Button>
+               </div>
+             </div>
             <ScrollArea className="h-96">
               <div className="space-y-3">
                 {filteredDocuments.slice(0, 5).map((doc) => (
