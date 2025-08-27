@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.12 (cd3cf9e)"
@@ -199,22 +199,22 @@ export type Database = {
       }
       search_documents_by_similarity: {
         Args: {
-          query_embedding: string
-          match_threshold?: number
           match_count?: number
+          match_threshold?: number
+          query_embedding: string
         }
         Returns: {
+          client: string
+          content: string
+          geography: string
           id: string
+          industry: string
+          similarity: number
+          summary: string
+          tags: string[]
           title: string
           type: Database["public"]["Enums"]["document_type"]
-          client: string
-          industry: string
-          geography: string
           year: string
-          summary: string
-          content: string
-          tags: string[]
-          similarity: number
         }[]
       }
       sparsevec_out: {
