@@ -2,6 +2,102 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
 
+// Function to extract text from PDF using PDF-lib
+async function extractTextFromPDF(file: File): Promise<string> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // Simple PDF text extraction - looks for text objects in PDF
+    const pdfText = new TextDecoder().decode(uint8Array);
+    
+    // Extract text content using regex patterns for PDF text objects
+    const textMatches = pdfText.match(/\(([^)]+)\)/g) || [];
+    const streamMatches = pdfText.match(/BT\s+.*?ET/gs) || [];
+    
+    let extractedText = '';
+    
+    // Process parentheses-enclosed text (simple text objects)
+    textMatches.forEach(match => {
+      const text = match.slice(1, -1); // Remove parentheses
+      if (text.length > 2 && !text.includes('\\') && /[a-zA-Z]/.test(text)) {
+        extractedText += text + ' ';
+      }
+    });
+    
+    // Process text streams
+    streamMatches.forEach(stream => {
+      const lines = stream.split('\n');
+      lines.forEach(line => {
+        // Look for Tj commands (show text)
+        const tjMatch = line.match(/\(([^)]*)\)\s*Tj/);
+        if (tjMatch) {
+          extractedText += tjMatch[1] + ' ';
+        }
+        
+        // Look for TJ commands (show text with spacing)
+        const tjArrayMatch = line.match(/\[([^\]]*)\]\s*TJ/);
+        if (tjArrayMatch) {
+          const textArray = tjArrayMatch[1];
+          const textParts = textArray.match(/\(([^)]*)\)/g) || [];
+          textParts.forEach(part => {
+            extractedText += part.slice(1, -1) + ' ';
+          });
+        }
+      });
+    });
+    
+    // Clean up extracted text
+    extractedText = extractedText
+      .replace(/\s+/g, ' ')
+      .replace(/[^\x20-\x7E\n]/g, '') // Remove non-printable characters
+      .trim();
+    
+    // If we couldn't extract much text, try a different approach
+    if (extractedText.length < 100) {
+      // Look for readable text patterns in the entire PDF
+      const readableText = pdfText
+        .replace(/[^\x20-\x7E\n]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .split(' ')
+        .filter(word => word.length > 2 && /^[a-zA-Z]/.test(word))
+        .join(' ');
+      
+      if (readableText.length > extractedText.length) {
+        extractedText = readableText;
+      }
+    }
+    
+    return extractedText.length > 50 ? extractedText : '';
+  } catch (error) {
+    console.error('Error extracting text from PDF:', error);
+    return '';
+  }
+}
+
+// Function to extract text from Word documents
+async function extractTextFromWord(file: File): Promise<string> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const docText = new TextDecoder().decode(uint8Array);
+    
+    // Simple text extraction for Word documents
+    // Look for readable text patterns
+    const extractedText = docText
+      .replace(/[^\x20-\x7E\n]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .split(' ')
+      .filter(word => word.length > 2 && /^[a-zA-Z]/.test(word))
+      .join(' ');
+    
+    return extractedText.length > 50 ? extractedText : '';
+  } catch (error) {
+    console.error('Error extracting text from Word document:', error);
+    return '';
+  }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -84,8 +180,11 @@ serve(async (req) => {
     let textContent = '';
     const fileType = file.type.toLowerCase();
     
+    console.log(`Extracting content from file type: ${fileType}`);
+    
     if (fileType.includes('text') || fileType.includes('plain')) {
       textContent = await file.text();
+      console.log(`Extracted ${textContent.length} characters from text file`);
     } else if (fileType.includes('json')) {
       const jsonContent = await file.text();
       try {
@@ -94,12 +193,30 @@ serve(async (req) => {
       } catch {
         textContent = jsonContent;
       }
+      console.log(`Extracted ${textContent.length} characters from JSON file`);
     } else if (fileType.includes('pdf')) {
-      textContent = `PDF Document: ${title}. Industry: ${industry}. Client: ${client}. This is a ${type} document. To get better search results, please upload the content in text format.`;
+      console.log('Attempting to extract text from PDF...');
+      const extractedText = await extractTextFromPDF(file);
+      if (extractedText && extractedText.length > 50) {
+        textContent = extractedText;
+        console.log(`Successfully extracted ${textContent.length} characters from PDF`);
+      } else {
+        textContent = `PDF Document: ${title}. Industry: ${industry}. Client: ${client}. This is a ${type} document. Note: Could not extract text content from PDF. Please upload as text file for full content search.`;
+        console.log('Could not extract sufficient text from PDF, using metadata only');
+      }
     } else if (fileType.includes('word') || fileType.includes('doc')) {
-      textContent = `Word Document: ${title}. Industry: ${industry}. Client: ${client}. This is a ${type} document. To get better search results, please upload the content in text format.`;
+      console.log('Attempting to extract text from Word document...');
+      const extractedText = await extractTextFromWord(file);
+      if (extractedText && extractedText.length > 50) {
+        textContent = extractedText;
+        console.log(`Successfully extracted ${textContent.length} characters from Word document`);
+      } else {
+        textContent = `Word Document: ${title}. Industry: ${industry}. Client: ${client}. This is a ${type} document. Note: Could not extract text content from Word document. Please upload as text file for full content search.`;
+        console.log('Could not extract sufficient text from Word document, using metadata only');
+      }
     } else {
       textContent = `Document: ${title}. Industry: ${industry}. Client: ${client}. Type: ${type}. File format: ${fileType}. Please upload in text format for full content search.`;
+      console.log(`Unsupported file type ${fileType}, using metadata only`);
     }
 
     // Clean and normalize text content
