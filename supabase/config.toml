@@ -8,3 +8,6 @@ verify_jwt = true
 
 [functions.upload-document]
 verify_jwt = true
+
+[functions.nlp-processor]
+verify_jwt = true

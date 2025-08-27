@@ -81,8 +81,41 @@ serve(async (req) => {
 
     console.log('✅ Processing message:', message.substring(0, 100), 'at', new Date().toISOString());
 
-    // Generate embedding for the user's query
+    // Step 1: Perform NLP analysis on user query
+    console.log('🧠 Performing NLP analysis on user query...');
+    let nlpAnalysis = null;
+    
+    try {
+      const nlpResponse = await supabaseWithAuth.functions.invoke('nlp-processor', {
+        body: { text: message },
+        headers: {
+          Authorization: authHeader
+        }
+      });
+      
+      if (!nlpResponse.error) {
+        nlpAnalysis = nlpResponse.data;
+        console.log('✅ NLP Analysis completed:', {
+          intent: nlpAnalysis.intent,
+          confidence: nlpAnalysis.confidence,
+          keywords: nlpAnalysis.keywords.slice(0, 3),
+          entities: nlpAnalysis.entities.slice(0, 3)
+        });
+      }
+    } catch (nlpError) {
+      console.log('⚠️ NLP analysis failed, continuing with basic search:', nlpError);
+    }
+
+    // Step 2: Generate embedding for semantic search
     console.log('🔍 Generating embedding for query with OpenAI...');
+    
+    // Enhance query with NLP insights for better embedding
+    let enhancedQuery = message;
+    if (nlpAnalysis && nlpAnalysis.keywords.length > 0) {
+      enhancedQuery = message + ' ' + nlpAnalysis.keywords.slice(0, 5).join(' ');
+      console.log('📈 Enhanced query with keywords for embedding');
+    }
+    
     const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: {
@@ -91,7 +124,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'text-embedding-3-small',
-        input: message,
+        input: enhancedQuery,
       }),
     });
 
@@ -149,48 +182,137 @@ serve(async (req) => {
       }
     }
 
-    // Fallback to text search if vector search fails or finds no results
-    console.log('🔍 Checking if text search fallback needed...');
+    // Step 3: Enhanced text search with NLP filters
+    console.log('🔍 Checking if enhanced text search needed...');
+    if (documents.length === 0 && nlpAnalysis) {
+      console.log('🔍 Starting NLP-enhanced text search...');
+      
+      // Build dynamic search query based on NLP analysis
+      let query = supabaseWithAuth.from('documents')
+        .select('id, title, type, client, industry, geography, year, summary, content, tags');
+      
+      // Apply NLP-based filters
+      const searchTerms = [
+        ...nlpAnalysis.keywords.slice(0, 3),
+        ...nlpAnalysis.entities.slice(0, 2)
+      ].filter(term => term.length > 2);
+      
+      if (searchTerms.length > 0) {
+        const searchPattern = searchTerms.map(term => 
+          `title.ilike.%${term}%,summary.ilike.%${term}%,content.ilike.%${term}%,tags.cs.{${term}}`
+        ).join(',');
+        query = query.or(searchPattern);
+      }
+      
+      // Apply domain filters if available
+      if (nlpAnalysis.searchFilters.industries && nlpAnalysis.searchFilters.industries.length > 0) {
+        query = query.in('industry', nlpAnalysis.searchFilters.industries);
+      }
+      
+      if (nlpAnalysis.searchFilters.documentTypes && nlpAnalysis.searchFilters.documentTypes.length > 0) {
+        const docTypeMapping = {
+          'rfp': 'RFP',
+          'proposal': 'Proposal', 
+          'case study': 'Case Study',
+          'win loss': 'Win/Loss Analysis'
+        };
+        const mappedTypes = nlpAnalysis.searchFilters.documentTypes.map(type => 
+          docTypeMapping[type.toLowerCase()] || type
+        );
+        query = query.in('type', mappedTypes);
+      }
+      
+      const { data: enhancedTextDocs, error: enhancedSearchError } = await query.limit(8);
+
+      console.log('📊 Enhanced text search completed');
+      console.log('📊 Enhanced search error:', enhancedSearchError);
+      console.log('📊 Enhanced search results count:', enhancedTextDocs?.length || 0);
+
+      if (enhancedSearchError) {
+        console.error('❌ Enhanced text search error:', enhancedSearchError);
+      } else {
+        documents = enhancedTextDocs || [];
+        searchMethod = 'enhanced_text';
+        console.log(`✅ Enhanced text search found ${documents.length} relevant documents`);
+        
+        // Higher confidence for NLP-enhanced search
+        if (documents.length > 0) {
+          confidence = 0.7 + (documents.length * 0.03) + (nlpAnalysis.confidence * 0.15);
+          console.log(`📊 Enhanced search confidence: ${confidence.toFixed(3)}`);
+        }
+      }
+    }
+    
+    // Step 4: Fallback to basic text search
     if (documents.length === 0) {
-      console.log('🔍 Starting text search fallback...');
+      console.log('🔍 Starting basic text search fallback...');
       const { data: textDocs, error: searchError } = await supabaseWithAuth
         .from('documents')
         .select('id, title, type, client, industry, geography, year, summary, content, tags')
         .or(`title.ilike.%${message}%,summary.ilike.%${message}%,content.ilike.%${message}%`)
         .limit(5);
 
-      console.log('📊 Text search completed');
-      console.log('📊 Text search error:', searchError);
-      console.log('📊 Text search results count:', textDocs?.length || 0);
+      console.log('📊 Basic text search completed');
+      console.log('📊 Basic text search error:', searchError);
+      console.log('📊 Basic text search results count:', textDocs?.length || 0);
 
       if (searchError) {
-        console.error('❌ Text search error:', searchError);
+        console.error('❌ Basic text search error:', searchError);
       } else {
         documents = textDocs || [];
-        searchMethod = 'text';
-        console.log(`✅ Text search found ${documents.length} relevant documents`);
+        searchMethod = 'basic_text';
+        console.log(`✅ Basic text search found ${documents.length} relevant documents`);
         
-        // Lower confidence for text-based search
+        // Lower confidence for basic text search
         if (documents.length > 0) {
-          confidence = 0.6 + (documents.length * 0.05); // 0.6 to 0.85 based on results count
-          console.log(`📊 Text search confidence: ${confidence.toFixed(3)}`);
+          confidence = 0.5 + (documents.length * 0.05);
+          console.log(`📊 Basic text search confidence: ${confidence.toFixed(3)}`);
         }
       }
     }
 
     console.log(`🎯 Final results: ${documents.length} documents, confidence: ${confidence.toFixed(3)}, method: ${searchMethod}`);
 
+    // Build comprehensive system prompt with NLP insights
     let systemPrompt = `You are an expert knowledge assistant that analyzes and retrieves information from a repository of business documents including RFPs, case studies, proposals, and reports.
+
+QUERY ANALYSIS:`;
+
+    if (nlpAnalysis) {
+      systemPrompt += `
+- Intent: ${nlpAnalysis.intent} (confidence: ${(nlpAnalysis.confidence * 100).toFixed(0)}%)
+- Key entities: ${nlpAnalysis.entities.slice(0, 5).join(', ')}
+- Keywords: ${nlpAnalysis.keywords.slice(0, 5).join(', ')}
+- Query type: ${nlpAnalysis.queryType}`;
+      
+      if (nlpAnalysis.searchFilters.industries) {
+        systemPrompt += `\n- Target industries: ${nlpAnalysis.searchFilters.industries.join(', ')}`;
+      }
+      if (nlpAnalysis.searchFilters.technologies) {
+        systemPrompt += `\n- Relevant technologies: ${nlpAnalysis.searchFilters.technologies.join(', ')}`;
+      }
+    }
+
+    systemPrompt += `
 
 INSTRUCTIONS:
 1. Always prioritize information from the provided documents
-2. Quote specific sections when referencing document content
+2. Quote specific sections when referencing document content  
 3. If documents contain relevant information, base your answer primarily on that content
 4. Be specific and detailed when document content is available
 5. Clearly indicate which documents you're referencing
+6. Structure your response based on the identified intent and query type
+7. If the intent is 'comparison', focus on comparing relevant aspects
+8. If the intent is 'summarization', provide concise key points
+9. If the intent is 'specific_search', highlight matching documents and their relevance
 
-Search method: ${searchMethod} ${searchMethod === 'vector' ? '(semantic similarity search)' : '(keyword text search)'}
+Search method: ${searchMethod} (${
+      searchMethod === 'vector' ? 'semantic similarity search' :
+      searchMethod === 'enhanced_text' ? 'NLP-enhanced keyword search' :
+      'basic keyword search'
+    })
 Confidence level: ${confidence.toFixed(2)}
+Documents retrieved: ${documents.length}
 
 AVAILABLE DOCUMENTS WITH CONTENT:`;
 
@@ -226,7 +348,13 @@ ${fullContent}
       systemPrompt += "\n\nNo relevant documents found. Provide general guidance and suggest the user be more specific about their query.";
     }
 
-    // Call OpenAI API
+    // Step 5: Generate intelligent response using advanced model
+    console.log('🤖 Generating intelligent response...');
+    
+    // Choose model based on query complexity and available context
+    const useAdvancedModel = documents.length > 3 || (nlpAnalysis && nlpAnalysis.confidence > 0.8);
+    const model = useAdvancedModel ? 'gpt-4o-mini' : 'gpt-4o-mini'; // Using consistent model
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -234,13 +362,13 @@ ${fullContent}
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
         ],
         temperature: 0.7,
-        max_tokens: 1500,
+        max_tokens: 2000, // Increased for more comprehensive responses
       }),
     });
 
@@ -311,7 +439,8 @@ ${fullContent}
         response: aiResponse, 
         sources: sources,
         conversationId: currentConversationId,
-        confidence: confidence
+        confidence: confidence,
+        nlpAnalysis: nlpAnalysis
       }), 
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

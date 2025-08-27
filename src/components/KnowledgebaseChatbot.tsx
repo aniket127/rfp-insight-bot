@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bot, Upload, Search, BookOpen, Plus, LogOut } from "lucide-react";
+import { Bot, Upload, Search, BookOpen, Plus, LogOut, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +9,7 @@ import { FilterPanel } from "./FilterPanel";
 import { DocumentCard } from "./DocumentCard";
 import { DocumentUpload } from "./DocumentUpload";
 import { Auth } from "./Auth";
+import { NLPInsights } from "./NLPInsights";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +21,7 @@ interface Message {
   timestamp: Date;
   sources?: string[];
   confidence?: number;
+  nlpAnalysis?: any;
 }
 
 interface Document {
@@ -97,6 +99,8 @@ export const KnowledgebaseChatbot = () => {
   const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [showNLPInsights, setShowNLPInsights] = useState(false);
+  const [currentNLPAnalysis, setCurrentNLPAnalysis] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -341,10 +345,16 @@ export const KnowledgebaseChatbot = () => {
         content: data.response,
         timestamp: new Date(),
         sources: data.sources || [],
-        confidence: data.confidence || 0.85
+        confidence: data.confidence || 0.85,
+        nlpAnalysis: data.nlpAnalysis
       };
 
       setMessages(prev => [...prev, botMessage]);
+      
+      // Store NLP analysis for insights display
+      if (data.nlpAnalysis) {
+        setCurrentNLPAnalysis(data.nlpAnalysis);
+      }
       
       // Store conversation ID for future messages
       if (data.conversationId) {
@@ -602,6 +612,25 @@ export const KnowledgebaseChatbot = () => {
             <TabsContent value="chat" className="flex-1 flex flex-col mt-4">
               <ScrollArea className="flex-1 px-6">
                 <div className="space-y-4 pb-4">
+                  {/* NLP Insights Panel */}
+                  {currentNLPAnalysis && (
+                    <div className="flex items-center justify-between">
+                      <NLPInsights 
+                        analysis={currentNLPAnalysis} 
+                        isVisible={showNLPInsights} 
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowNLPInsights(!showNLPInsights)}
+                        className="ml-2"
+                      >
+                        <Brain className="h-4 w-4" />
+                        {showNLPInsights ? 'Hide' : 'Show'} Analysis
+                      </Button>
+                    </div>
+                  )}
+                  
                   {messages.map((message) => (
                     <ChatMessage
                       key={message.id}
