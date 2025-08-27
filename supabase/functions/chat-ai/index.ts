@@ -197,15 +197,29 @@ AVAILABLE DOCUMENTS WITH CONTENT:`;
     if (documents && documents.length > 0) {
       systemPrompt += documents.map((doc, index) => {
         const similarityInfo = doc.similarity ? ` (${Math.round(doc.similarity * 100)}% relevance)` : '';
-        const contentPreview = doc.content ? 
-          doc.content.substring(0, 3000) + (doc.content.length > 3000 ? '...' : '') : 
-          doc.summary || 'No content available';
+        
+        // Use the full content if available, with a reasonable limit for context window
+        let fullContent = '';
+        if (doc.content && doc.content.trim()) {
+          // Use up to 15,000 characters per document to provide comprehensive context
+          fullContent = doc.content.length > 15000 ? 
+            doc.content.substring(0, 15000) + '\n[Content truncated for length...]' : 
+            doc.content;
+        } else if (doc.summary) {
+          fullContent = doc.summary;
+        } else {
+          fullContent = 'No content available - document may need to be re-uploaded in text format.';
+        }
         
         return `
 
 DOCUMENT ${index + 1}: "${doc.title}"${similarityInfo}
 Type: ${doc.type} | Client: ${doc.client} | Industry: ${doc.industry}
-Content: ${contentPreview}
+Geography: ${doc.geography} | Year: ${doc.year}
+
+FULL DOCUMENT CONTENT:
+${fullContent}
+
 ---`;
       }).join('');
     } else {
