@@ -2,96 +2,177 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
 
-// Function to extract text from PDF using PDF-lib
+// Enhanced PDF text extraction using multiple methods
 async function extractTextFromPDF(file: File): Promise<string> {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
+    const pdfText = new TextDecoder('utf-8', { ignoreBOM: true }).decode(uint8Array);
     
-    // Simple PDF text extraction - looks for text objects in PDF
-    const pdfText = new TextDecoder().decode(uint8Array);
-    
-    // Extract text content using regex patterns for PDF text objects
-    const textMatches = pdfText.match(/\(([^)]+)\)/g) || [];
-    const streamMatches = pdfText.match(/BT\s+.*?ET/gs) || [];
+    console.log(`PDF file size: ${uint8Array.length} bytes`);
     
     let extractedText = '';
     
-    // Process parentheses-enclosed text (simple text objects)
-    textMatches.forEach(match => {
-      const text = match.slice(1, -1); // Remove parentheses
-      if (text.length > 2 && !text.includes('\\') && /[a-zA-Z]/.test(text)) {
-        extractedText += text + ' ';
-      }
-    });
+    // Method 1: Extract from text objects using improved regex patterns
+    console.log('Attempting Method 1: Text objects extraction...');
     
-    // Process text streams
-    streamMatches.forEach(stream => {
-      const lines = stream.split('\n');
-      lines.forEach(line => {
-        // Look for Tj commands (show text)
-        const tjMatch = line.match(/\(([^)]*)\)\s*Tj/);
-        if (tjMatch) {
-          extractedText += tjMatch[1] + ' ';
+    // Look for text streams between BT and ET operators
+    const textStreams = pdfText.match(/BT[\s\S]*?ET/g) || [];
+    console.log(`Found ${textStreams.length} text streams`);
+    
+    textStreams.forEach(stream => {
+      // Extract text from Tj operations (show text)
+      const tjMatches = stream.match(/\(([^)]*)\)\s*Tj/g) || [];
+      tjMatches.forEach(match => {
+        const text = match.match(/\(([^)]*)\)/)?.[1] || '';
+        if (text && text.length > 1 && /[a-zA-Z]/.test(text)) {
+          extractedText += text + ' ';
         }
-        
-        // Look for TJ commands (show text with spacing)
-        const tjArrayMatch = line.match(/\[([^\]]*)\]\s*TJ/);
-        if (tjArrayMatch) {
-          const textArray = tjArrayMatch[1];
-          const textParts = textArray.match(/\(([^)]*)\)/g) || [];
-          textParts.forEach(part => {
-            extractedText += part.slice(1, -1) + ' ';
-          });
-        }
+      });
+      
+      // Extract text from TJ operations (show text with individual glyph positioning)
+      const tjArrayMatches = stream.match(/\[([^\]]*)\]\s*TJ/g) || [];
+      tjArrayMatches.forEach(match => {
+        const content = match.match(/\[([^\]]*)\]/)?.[1] || '';
+        const textParts = content.match(/\(([^)]*)\)/g) || [];
+        textParts.forEach(part => {
+          const text = part.slice(1, -1);
+          if (text && text.length > 1 && /[a-zA-Z]/.test(text)) {
+            extractedText += text + ' ';
+          }
+        });
       });
     });
     
-    // Clean up extracted text
-    extractedText = extractedText
-      .replace(/\s+/g, ' ')
-      .replace(/[^\x20-\x7E\n]/g, '') // Remove non-printable characters
-      .trim();
+    console.log(`Method 1 extracted ${extractedText.length} characters`);
     
-    // If we couldn't extract much text, try a different approach
+    // Method 2: Look for parentheses-enclosed text throughout the PDF
     if (extractedText.length < 100) {
-      // Look for readable text patterns in the entire PDF
-      const readableText = pdfText
-        .replace(/[^\x20-\x7E\n]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .split(' ')
-        .filter(word => word.length > 2 && /^[a-zA-Z]/.test(word))
-        .join(' ');
+      console.log('Attempting Method 2: Global parentheses extraction...');
+      const globalTextMatches = pdfText.match(/\(([^)]{2,})\)/g) || [];
       
-      if (readableText.length > extractedText.length) {
-        extractedText = readableText;
-      }
+      globalTextMatches.forEach(match => {
+        const text = match.slice(1, -1);
+        if (text && 
+            text.length > 2 && 
+            /[a-zA-Z]/.test(text) && 
+            !text.includes('\\') && 
+            !text.match(/^[0-9\s.,]+$/)) {
+          extractedText += text + ' ';
+        }
+      });
+      
+      console.log(`Method 2 extracted additional ${extractedText.length} characters`);
     }
     
-    return extractedText.length > 50 ? extractedText : '';
+    // Method 3: Extract readable text patterns
+    if (extractedText.length < 100) {
+      console.log('Attempting Method 3: Pattern-based extraction...');
+      
+      // Split PDF into lines and look for readable content
+      const lines = pdfText.split(/[\r\n]+/);
+      const readableLines = lines
+        .map(line => line.trim())
+        .filter(line => {
+          // Filter for lines that likely contain readable text
+          return line.length > 3 && 
+                 line.length < 200 && 
+                 /[a-zA-Z]/.test(line) && 
+                 (line.match(/[a-zA-Z]/g) || []).length > line.length * 0.3;
+        })
+        .map(line => {
+          // Clean up the line
+          return line
+            .replace(/[^\x20-\x7E]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        })
+        .filter(line => line.length > 5);
+      
+      if (readableLines.length > 0) {
+        extractedText = readableLines.join(' ');
+      }
+      
+      console.log(`Method 3 extracted ${extractedText.length} characters`);
+    }
+    
+    // Clean and format extracted text
+    extractedText = extractedText
+      .replace(/\s+/g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2') // Add spaces before capital letters
+      .replace(/([.!?])\s*([A-Z])/g, '$1 $2') // Ensure proper sentence spacing
+      .trim();
+    
+    console.log(`Final extracted text length: ${extractedText.length} characters`);
+    
+    // Return text if we extracted a reasonable amount
+    if (extractedText.length > 50) {
+      console.log('PDF text extraction successful');
+      return extractedText;
+    } else {
+      console.log('PDF text extraction yielded insufficient content');
+      return '';
+    }
+    
   } catch (error) {
     console.error('Error extracting text from PDF:', error);
     return '';
   }
 }
 
-// Function to extract text from Word documents
+// Enhanced Word document text extraction
 async function extractTextFromWord(file: File): Promise<string> {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
-    const docText = new TextDecoder().decode(uint8Array);
     
-    // Simple text extraction for Word documents
-    // Look for readable text patterns
-    const extractedText = docText
-      .replace(/[^\x20-\x7E\n]/g, ' ')
+    console.log(`Word file size: ${uint8Array.length} bytes`);
+    
+    let extractedText = '';
+    
+    // Method 1: Look for XML content (modern .docx files)
+    const docText = new TextDecoder('utf-8', { ignoreBOM: true }).decode(uint8Array);
+    
+    // Check if it's a ZIP-based .docx file
+    if (docText.includes('word/document.xml') || docText.includes('PK')) {
+      console.log('Detected .docx format, extracting XML content...');
+      
+      // Look for text content patterns in XML
+      const textMatches = docText.match(/<w:t[^>]*>([^<]+)<\/w:t>/g) || [];
+      textMatches.forEach(match => {
+        const text = match.replace(/<[^>]+>/g, '').trim();
+        if (text && text.length > 1) {
+          extractedText += text + ' ';
+        }
+      });
+    } else {
+      // Method 2: Extract readable patterns for older .doc files
+      console.log('Extracting text patterns from binary Word document...');
+      
+      const lines = docText.split(/[\r\n\0]+/);
+      const readableLines = lines
+        .map(line => line.replace(/[^\x20-\x7E]/g, ' ').trim())
+        .filter(line => {
+          return line.length > 3 && 
+                 /[a-zA-Z]/.test(line) && 
+                 (line.match(/[a-zA-Z]/g) || []).length > line.length * 0.4;
+        })
+        .map(line => line.replace(/\s+/g, ' ').trim());
+      
+      if (readableLines.length > 0) {
+        extractedText = readableLines.join(' ');
+      }
+    }
+    
+    // Clean extracted text
+    extractedText = extractedText
       .replace(/\s+/g, ' ')
-      .split(' ')
-      .filter(word => word.length > 2 && /^[a-zA-Z]/.test(word))
-      .join(' ');
+      .trim();
+    
+    console.log(`Word extraction result: ${extractedText.length} characters`);
     
     return extractedText.length > 50 ? extractedText : '';
+    
   } catch (error) {
     console.error('Error extracting text from Word document:', error);
     return '';
